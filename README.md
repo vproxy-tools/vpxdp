@@ -40,3 +40,9 @@ Testing from another terminal:
 ```shell
 ping 'fd00::1'
 ```
+
+To run the java version sample:
+
+```shell
+make run-java veth0
+```

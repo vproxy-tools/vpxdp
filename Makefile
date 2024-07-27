@@ -20,6 +20,7 @@ clean:
 	rm -f sample_kern.ll
 	rm -f sample_kern.o
 	rm -f libvpxdp.so
+	cd vpxdp-java && ./gradlew clean
 
 .PHONY: xdptools
 xdptools:
@@ -42,7 +43,7 @@ so: xdptools
 	rm -f libvpxdp.so
 	gcc -O2 $(INC_CMD) $(LD_CMD) \
 		-g -o libvpxdp.so -fPIC -shared \
-		vproxy_xdp.c vproxy_xdp_util.c vproxy_checksum.c \
+		vproxy_xdp.c vproxy_xdp_util.c vproxy_checksum.c expose_inline.c \
 		-lxdp -lelf
 
 .PHONY: all
@@ -59,6 +60,10 @@ prepare:
 .PHONY: run
 run: sample_kern sample_user
 	LD_LIBRARY_PATH=$(LD_PATH) ./sample_user $(filter-out $@,$(MAKECMDGOALS))
+
+.PHONY: run-java
+run-java: so sample_kern
+	cd vpxdp-java && ./gradlew runSample --args=$(filter-out $@,$(MAKECMDGOALS))
 
 .PHONY: docker-run
 docker-run:

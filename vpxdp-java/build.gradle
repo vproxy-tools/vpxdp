@@ -1,0 +1,97 @@
+import io.vproxy.pni.exec.CompilationFlag
+
+buildscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+    def PNI_VERSION = '22.0.0.21'
+    ext.set("PNI_VERSION", PNI_VERSION)
+    dependencies {
+        classpath group: 'io.vproxy', name: 'pni-exec-jdk22', version: PNI_VERSION
+    }
+}
+
+plugins {
+    id 'java'
+}
+
+group = 'io.vproxy'
+version = '1.0-SNAPSHOT'
+
+subprojects {
+    apply plugin: 'java-library'
+
+    java {
+        sourceCompatibility = '22'
+        targetCompatibility = '22'
+    }
+
+    tasks.withType(JavaCompile) {
+        options.encoding = "UTF-8"
+        options.incremental = false
+    }
+    tasks.withType(JavaExec) {
+        jvmArgs += '--enable-native-access=ALL-UNNAMED'
+        javaLauncher.set(javaToolchains.launcherFor(java.toolchain))
+    }
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+
+    dependencies {
+        api 'io.vproxy:pni-api-jdk22:' + PNI_VERSION
+    }
+}
+
+project(":pni-template") {
+    compileJava {
+        options.compilerArgs += '-parameters'
+    }
+
+    task pniGenerate() {
+        dependsOn compileJava
+
+        def workingDir = project.rootProject.rootDir.getAbsolutePath()
+        def opts = new io.vproxy.pni.exec.CompilerOptions()
+                .setClasspath(List.of(workingDir + '/pni-template/build/classes/java/main'))
+                .setJavaOutputBaseDirectory(workingDir + '/core/src/main/generated')
+                .setCOutputDirectory(workingDir + '/core/src/main/c-generated')
+                .setCompilationFlag(CompilationFlag.TYPE_NAME_PREFIX, "PNI")
+                .setCompilationFlag(CompilationFlag.ALWAYS_ALIGNED)
+
+        def gen = new io.vproxy.pni.exec.Generator(opts)
+
+        doLast {
+            gen.generate()
+        }
+    }
+}
+
+project(":core") {
+    sourceSets {
+        main {
+            java {
+                srcDirs = ['src/main/java', 'src/main/generated']
+            }
+        }
+    }
+}
+
+project(":test") {
+    dependencies {
+        implementation project(":core")
+        implementation "io.vproxy:commons:1.4.0"
+    }
+
+    task runSample(type: JavaExec) {
+        classpath = sourceSets.test.runtimeClasspath
+        workingDir = project.rootProject.rootDir.getParentFile().getAbsolutePath()
+        systemProperty("java.library.path",
+                "./" + File.pathSeparator + "./submodules/xdp-tools/lib/libxdp/" +
+                        File.pathSeparator + "/usr/lib/" + "uname -m".execute().text.trim() + "-linux-gnu")
+        main = "io.vproxy.vpxdp.SampleUser"
+    }
+}
