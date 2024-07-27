@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <unistd.h>
 #include <string.h>
 #include <linux/if_link.h>
@@ -83,6 +84,11 @@ void hexDump (
     printf ("  %s\n", buff);
 }
 
+volatile sig_atomic_t sigint = 0;
+void handleSigInt(int signal) {
+    sigint = 1;
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         printf("the first argument should be ifname to attach the ebpf program\n");
@@ -90,7 +96,8 @@ int main(int argc, char** argv) {
     }
     char* ifname = argv[1];
 
-    struct bpf_object* bpfobj = vp_bpfobj_attach_to_if("sample_kern.o", "xdp_sock", ifname, XDP_FLAGS_SKB_MODE);
+#define XDP_MODE (XDP_FLAGS_SKB_MODE)
+    struct bpf_object* bpfobj = vp_bpfobj_attach_to_if("sample_kern.o", "xdp_sock", ifname, XDP_MODE);
     if (bpfobj == NULL) {
         return 1;
     }
@@ -99,11 +106,13 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    struct vp_umem_info* umem = vp_umem_create(64, 32, 32, XSK_UMEM__DEFAULT_FRAME_SIZE, 0);
+#define HEADROOM (512)
+#define META_LEN (32)
+    struct vp_umem_info* umem = vp_umem_create(64, 32, 32, XSK_UMEM__DEFAULT_FRAME_SIZE, HEADROOM, META_LEN);
     if (umem == NULL) {
         return 1;
     }
-    struct vp_xsk_info* xsk = vp_xsk_create(ifname, 0, umem, 32, 32, XDP_FLAGS_SKB_MODE, XDP_COPY, 0, 0);
+    struct vp_xsk_info* xsk = vp_xsk_create(ifname, 0, umem, 32, 32, XDP_MODE, XDP_COPY, 0, 0);
     if (xsk == NULL) {
         return 1;
     }
@@ -118,15 +127,20 @@ int main(int argc, char** argv) {
 
     struct pollfd fds[2];
     memset(fds, 0, sizeof(fds));
-    fds[0].fd = vp_xsk_socket_fd(xsk);
+    fds[0].fd = xsk_socket__fd(xsk->xsk);
     fds[0].events = POLLIN;
 
-    int total = 128;
+    signal(SIGINT, handleSigInt);
+
+    printf("press ctrl-c to exit\n");
     int cnt = 0;
-    printf("this program will recieve %d packets and then exit\n", total);
     while (1) {
-        int ret = poll(fds, 1, -1);
-        if (ret <= 0 || ret > 1) continue;
+        if (sigint) break;
+        int ret = poll(fds, 1, 50);
+        if (ret <= 0 || ret > 1) {
+            if (sigint) break;
+            continue;
+        }
 
         printf("poll triggered\n");
 
@@ -161,42 +175,48 @@ int main(int argc, char** argv) {
                 }
                 // set icmp type
                 chunk->pkt[14 + 40] = 129;
-                if (cnt %2 == 0) {
-                    printf("echo the packet without copying\n");
+                struct vp_chunk_info* s_chunk;
+                int is_copy = (cnt % 2) == 1;
+                int is_offload = (cnt % 4) >= 2;
+                if (!is_copy) {
                     chunk->ref++;
-                    chunk->csum_flags = VP_CSUM_ALL;
-                    vp_xdp_write_pkt(xsk, chunk);
+                    s_chunk = chunk;
                 } else {
-                    printf("copy and echo the packet\n");
                     struct vp_chunk_info* chunk2 = vp_chunk_fetch(umem->chunks);
                     if (chunk2 == NULL) {
                         printf("ERR! umem no enough chunks: size=%d used=%d\n",
                                umem->chunks->size, umem->chunks->used);
                         continue;
                     }
-                    chunk2->pktaddr = chunk2->addr;
-                    chunk2->pkt = chunk2->realaddr;
+                    chunk2->pktaddr = chunk2->addr + META_LEN;
+                    chunk2->pkt = chunk2->realaddr + META_LEN;
                     chunk2->pktlen = chunk->pktlen;
-                    chunk2->csum_flags = VP_CSUM_ALL;
                     memcpy(chunk2->pkt, chunk->pkt, chunk->pktlen);
 
-                    vp_xdp_write_pkt(xsk, chunk2);
+                    s_chunk = chunk2;
                 }
+                if (!is_offload) {
+                    s_chunk->csum_flags = VP_CSUM_ALL;
+                } else {
+                    s_chunk->csum_flags = VP_CSUM_IP | VP_CSUM_UP_PSEUDO | VP_CSUM_XDP_OFFLOAD;
+                }
+#define TEXT_GREEN ("\033[0;32m")
+#define TEXT_RED   ("\033[0;31m")
+                printf("no_copy = %s%s\033[0m , csum_offload = %s%s\033[0m\n",
+                       (is_copy    ? TEXT_RED : TEXT_GREEN), (is_copy     ? "off" : "on"),
+                       (is_offload ? TEXT_GREEN : TEXT_RED), (is_offload ? "on" : "off"));
+                vp_xdp_write_pkt(xsk, s_chunk);
             }
 
             vp_chunk_release(umem->chunks, chunk);
-
-            if (cnt == total) {
-                goto out_loop;
-            }
         }
         vp_xdp_rx_release(xsk, rcvd);
         vp_xdp_fill_ring_fillup(umem);
         vp_xdp_complete_tx(xsk);
     }
-out_loop:
     vp_xsk_close(xsk);
     vp_umem_close(umem, true);
+    vp_bpfobj_detach_from_if(ifname);
 
     printf("received %d packets, exit\n", cnt);
     return 0;

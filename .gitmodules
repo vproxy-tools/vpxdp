@@ -1,0 +1,4 @@
+[submodule "submodules/xdp-tools"]
+	path = submodules/xdp-tools
+	url = https://github.com/vproxy-tools/xdp-tools
+	branch = v1.4.2+libbpf-v1.4.5-modified

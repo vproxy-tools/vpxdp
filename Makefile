@@ -1,39 +1,67 @@
+.DEFAULT_GOAL = all
+
+XDPTOOLS_PATH = ./submodules/xdp-tools
+
+LIBBPF_INC = $(XDPTOOLS_PATH)/lib/libbpf/src/root/usr/include
+LIBXDP_INC = $(XDPTOOLS_PATH)/headers
+UAPI_INC   = $(XDPTOOLS_PATH)/lib/libbpf/include/uapi
+linux-gnu-include := $(shell echo /usr/include/`uname -m`-linux-gnu)
+INC_CMD = -I $(UAPI_INC) -I $(LIBBPF_INC) -I $(LIBXDP_INC) -I $(linux-gnu-include)
+
+LIBXDP_LD  = $(XDPTOOLS_PATH)/lib/libxdp
+linux-gnu-lib = $(shell echo /usr/lib/`uname -m`-linux-gnu)
+LD_CMD = -L $(LIBXDP_LD) -L $(linux-gnu-lib)
+LD_PATH = $(LIBXDP_LD):$(linux-gnu-lib):.
+
 .PHONY: clean
 clean:
-	rm -f .libbpf
-	cd libbpf/src && make clean
+	cd $(XDPTOOLS_PATH) && make clean
 	rm -f sample_user
 	rm -f sample_kern.ll
 	rm -f sample_kern.o
+	rm -f libvpxdp.so
 
-.libbpf:
-	cd libbpf/src && make
-	touch .libbpf
+.PHONY: xdptools
+xdptools:
+	cd $(XDPTOOLS_PATH) && make
 
-linux-gnu-lib := $(shell echo /usr/lib/`uname -m`-linux-gnu)
-linux-gnu-include := $(shell echo /usr/include/`uname -m`-linux-gnu)
-
-.PHONY: libbpf
-libbpf: .libbpf
-
-sample_kern.o:
-	clang -O2 -I$(linux-gnu-include) -I./libbpf/src -target bpf -S -c -emit-llvm -o sample_kern.ll sample_kern.c
+.PHONY: sample_kern
+sample_kern: xdptools
+	rm -f sample_kern.o
+	clang -g -O2 $(INC_CMD) -target bpf -S -c -emit-llvm -o sample_kern.ll sample_kern.c
 	llc -march=bpf -filetype=obj -o sample_kern.o sample_kern.ll
 
-.PHONY: kern
-kern:
-	rm -f sample_kern.ll
-	rm -f sample_kern.o
-	make sample_kern.o
+.PHONY: sample_user
+sample_user: xdptools so
+	gcc -O2 $(INC_CMD) $(LD_CMD) -I . -L . \
+		-g -o sample_user sample_user.c \
+		-lxdp -lelf -lvpxdp
 
-sample_user: .libbpf
-	gcc -O2 -L$(linux-gnu-lib) -L./libbpf/src -I./libbpf/src -g -o sample_user sample_user.c vproxy_xdp.c vproxy_xdp_util.c vproxy_checksum.c -lbpf -lelf
+.PHONY: so
+so: xdptools
+	rm -f libvpxdp.so
+	gcc -O2 $(INC_CMD) $(LD_CMD) \
+		-g -o libvpxdp.so -fPIC -shared \
+		vproxy_xdp.c vproxy_xdp_util.c vproxy_checksum.c \
+		-lxdp -lelf
 
-.PHONY: user
-user:
-	rm -f sample_user
-	make sample_user
+.PHONY: all
+all: so sample_user sample_kern
+
+.PHONY: prepare
+prepare:
+	ip link add veth0 type veth peer name veth1
+	ip link set veth0 up
+	ip link set veth1 up
+	ip addr add 'fd00::2/120' dev veth1
+	ip neigh add 'fd00::1' dev veth1 lladdr '11:22:33:aa:bb:cc'
 
 .PHONY: run
-run: sample_kern.o sample_user
-	LD_LIBRARY_PATH=./libbpf/src ./sample_user $(filter-out $@,$(MAKECMDGOALS))
+run: sample_kern sample_user
+	LD_LIBRARY_PATH=$(LD_PATH) ./sample_user $(filter-out $@,$(MAKECMDGOALS))
+
+.PHONY: docker-run
+docker-run:
+	docker run --name=vpxdp-sample --rm \
+		--net=host --privileged -it -v `pwd`:/vproxy \
+		vproxyio/compile:latest /bin/bash

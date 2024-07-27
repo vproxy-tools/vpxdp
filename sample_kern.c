@@ -1,26 +1,26 @@
 #include <linux/bpf.h>
-#include <bpf_helpers.h>
+#include <bpf/bpf_helpers.h>
 
-struct bpf_map_def SEC("maps") xsks_map = {
-    .type = BPF_MAP_TYPE_XSKMAP,
-    .max_entries = 128,
-    .key_size = sizeof(int),
-    .value_size = sizeof(int)
-};
+struct {
+    __uint(type,        BPF_MAP_TYPE_XSKMAP);
+    __uint(max_entries, 128);
+    __type(key,         int);
+    __type(value,       int);
+} xsks_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") mac_map = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .max_entries = 4096,
-    .key_size = sizeof(char[6]),
-    .value_size = sizeof(int)
-};
+struct {
+    __uint(type,        BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, 4096);
+    __type(key,         char[6]);
+    __type(value,       int);
+} mac_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") in_mac_map = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .max_entries = 4096,
-    .key_size = sizeof(char[6]),
-    .value_size = sizeof(int)
-};
+struct {
+    __uint(type,        BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, 4096);
+    __type(key,         char[6]);
+    __type(value,       int);
+} in_mac_map SEC(".maps");
 
 inline int redirect_pkt_count_check(struct xdp_md *ctx) {
     unsigned char* data_end = (unsigned char*) ((long) ctx->data_end);
@@ -67,7 +67,7 @@ inline int redirect_pkt_by_mac(struct xdp_md *ctx) {
     return XDP_DROP;
 }
 
-SEC("xdp_sock") int xdp_sock_prog(struct xdp_md *ctx)
+SEC("xdp") int xdp_sock(struct xdp_md *ctx)
 {
     int redirect_result = redirect_pkt_by_mac(ctx);
     if (redirect_result != XDP_DROP) {

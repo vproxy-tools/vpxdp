@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <net/if.h>
+#include <linux/if_xdp.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -11,7 +12,7 @@
 
 #include "vproxy_checksum.h"
 
-extern struct bpf_object* load_bpf_object_file(const char* filename, int ifindex);
+extern struct bpf_object* load_bpf_object_file(const char* filename);
 extern int xdp_link_attach(int ifindex, __u32 xdp_flags, int prog_fd);
 
 struct bpf_object* vp_bpfobj_attach_to_if(char* filepath, char* prog, char* ifname, int attach_flags) {
@@ -24,30 +25,30 @@ struct bpf_object* vp_bpfobj_attach_to_if(char* filepath, char* prog, char* ifna
 
     struct bpf_object* bpf_obj = NULL;
 
-    bpf_obj = load_bpf_object_file(filepath, 0);
+    bpf_obj = load_bpf_object_file(filepath);
     if (!bpf_obj) {
-        fprintf(stderr, "ERR: load_bpf_object_file(%s, 0) failed\n",
-                filepath);
+        fprintf(stderr, "ERR: load_bpf_object_file(%s) failed: %d %s\n",
+                filepath, errno, strerror(errno));
         goto err;
     }
-    struct bpf_program* bpf_prog = bpf_object__find_program_by_title(bpf_obj, prog);
+    struct bpf_program* bpf_prog = bpf_object__find_program_by_name(bpf_obj, prog);
     if (!bpf_prog) {
-        fprintf(stderr, "ERR: bpf_object__find_program_by_title(..., %s) failed\n",
-                prog);
+        fprintf(stderr, "ERR: bpf_object__find_program_by_name(%s, %s) failed: %d %s\n",
+                filepath, prog, errno, strerror(errno));
         goto err;
     }
 
     int prog_fd = bpf_program__fd(bpf_prog);
-    if (prog_fd <= 0) {
-        fprintf(stderr, "ERR: bpf_program__fd(...) failed: %d %s",
-                -prog_fd, strerror(-prog_fd));
+    if (prog_fd < 0) {
+        fprintf(stderr, "ERR: bpf_program__fd(%s) failed: %d %s\n",
+                prog, -prog_fd, strerror(-prog_fd));
         goto err;
     }
 
     int err = xdp_link_attach(ifindex, attach_flags, prog_fd);
     if (err) {
-        fprintf(stderr, "ERR: xdp_link_attach(%d, %d, ...) failed: %d %s\n",
-                ifindex, attach_flags, -err, strerror(-err));
+        fprintf(stderr, "ERR: xdp_link_attach(%d, %d, %s) failed: %d %s\n",
+                ifindex, attach_flags, prog, -err, strerror(-err));
         goto err;
     }
 
@@ -67,16 +68,13 @@ int vp_bpfobj_detach_from_if(char* ifname) {
             ifname, errno, strerror(errno));
         return -1;
     }
-    int err = xdp_link_attach(ifindex, XDP_FLAGS_SKB_MODE, -1);
-    int err2 = xdp_link_attach(ifindex, XDP_FLAGS_DRV_MODE, -1);
-    if (!err || !err2) {
-        err = 0;
-    } else if (err2 != 0) {
-        err = err2;
-    }
+    struct bpf_xdp_attach_opts opts = { 0 };
+    opts.sz = sizeof(struct bpf_xdp_attach_opts);
+    int err = bpf_xdp_detach(ifindex, XDP_FLAGS_DRV_MODE, &opts)
+            | bpf_xdp_detach(ifindex, XDP_FLAGS_SKB_MODE, &opts);
     if (err) {
-        fprintf(stderr, "ERR: xdp_link_attach(%d, XDP_FLAGS_UPDATE_IF_NOEXIST, -1) failed: %d %s\n",
-            ifindex, -err, strerror(-err));
+        fprintf(stderr, "ERR: bpf_xdp_detach(%d, *, ...) failed: %d %s\n",
+                ifindex, -err, strerror(-err));
         return err;
     }
     return 0;
@@ -92,13 +90,13 @@ struct bpf_map* vp_bpfobj_find_map_by_name(struct bpf_object* bpfobj, char* name
 }
 
 struct vp_umem_info* vp_umem_create(int chunks_size, int fill_ring_size, int comp_ring_size,
-                                    uint64_t frame_size, int headroom) {
+                                    uint64_t frame_count, int headroom, int meta_len) {
     if (chunks_size < fill_ring_size) {
         fprintf(stderr, "WARN: chunks_size %d < fill_ring_size %d, set chunks_size to fill_ring_size",
                 chunks_size, fill_ring_size);
         chunks_size = fill_ring_size;
     }
-    int mem_size = chunks_size * frame_size;
+    int mem_size = chunks_size * frame_count;
 
     void* buffer = NULL;
     struct vp_umem_info* umem = NULL;
@@ -120,8 +118,9 @@ struct vp_umem_info* vp_umem_create(int chunks_size, int fill_ring_size, int com
     struct xsk_umem_config umem_config = {
         .fill_size = fill_ring_size,
         .comp_size = comp_ring_size,
-        .frame_size = frame_size,
+        .frame_size = frame_count,
         .frame_headroom = headroom,
+        .tx_metadata_len = meta_len,
         .flags = 0
     };
 
@@ -136,7 +135,7 @@ struct vp_umem_info* vp_umem_create(int chunks_size, int fill_ring_size, int com
     umem->buffer_size = mem_size;
 
     umem->chunks = (struct vp_chunk_array*) (((size_t)umem) + sizeof(struct vp_umem_info));
-    umem->chunks->frame_size = frame_size;
+    umem->chunks->frame_count = frame_count;
     umem->chunks->size = chunks_size;
     umem->chunks->used = 0;
     umem->chunks->idx = 0;
@@ -145,11 +144,14 @@ struct vp_umem_info* vp_umem_create(int chunks_size, int fill_ring_size, int com
         umem->chunks->array[i].umem = umem;
         umem->chunks->array[i].xsk = NULL;
         umem->chunks->array[i].ref = 0;
-        umem->chunks->array[i].addr = i * frame_size;
-        umem->chunks->array[i].endaddr = (i + 1) * frame_size;
+        umem->chunks->array[i].addr = i * frame_count;
+        umem->chunks->array[i].endaddr = (i + 1) * frame_count;
         umem->chunks->array[i].realaddr = (char*) (((size_t)buffer) + umem->chunks->array[i].addr);
         umem->chunks->array[i].pkt = NULL;
     }
+
+    // record data
+    umem->tx_metadata_len = meta_len;
 
     // fillup the fill ring
     vp_xdp_fill_ring_fillup(umem);
@@ -239,19 +241,13 @@ err:
 }
 
 int vp_xsk_add_into_map(struct bpf_map* map, int key, struct vp_xsk_info* xsk) {
-    int xsks_map_fd = bpf_map__fd(map);
-    if (xsks_map_fd < 0) {
-        fprintf(stderr, "ERR: bpf_map__fd failed: %d %s\n",
-                -xsks_map_fd, strerror(-xsks_map_fd));
-        return -1;
-    }
     int fd = xsk_socket__fd(xsk->xsk);
     if (fd < 0) {
         fprintf(stderr, "ERR: xsks_socket__fd failed: %d %s\n",
                 -fd, strerror(-fd));
         return -1;
     }
-    int ret = bpf_map_update_elem(xsks_map_fd, &key, &fd, BPF_ANY);
+    int ret = bpf_map__update_elem(map, &key, sizeof(key), &fd, sizeof(fd), BPF_ANY);
     if (ret) {
         fprintf(stderr, "ERR: bpf_map_update_elem failed\n");
         return -1;
@@ -259,14 +255,14 @@ int vp_xsk_add_into_map(struct bpf_map* map, int key, struct vp_xsk_info* xsk) {
     return 0;
 }
 
-int vp_mac_add_into_map(struct bpf_map* map, char* mac, int ifindex) {
-    int map_fd = bpf_map__fd(map);
-    if (map_fd < 0) {
-        fprintf(stderr, "ERR: bfp_map__fd failed: %d %s\n",
-                -map_fd, strerror(-map_fd));
+int vp_mac_add_into_map(struct bpf_map* map, char* mac, char* ifname) {
+    int ifindex = if_nametoindex((const char*)ifname);
+    if (ifindex <= 0) {
+        fprintf(stderr, "ERR: if_nametoindex(%s) failed: %d %s\n",
+                ifname, errno, strerror(errno));
         return -1;
     }
-    int ret = bpf_map_update_elem(map_fd, mac, &ifindex, BPF_ANY);
+    int ret = bpf_map__update_elem(map, mac, 6, &ifindex, sizeof(ifindex), BPF_ANY);
     if (ret) {
         fprintf(stderr, "ERR: bpf_map_update_elem failed\n");
         return -1;
@@ -275,22 +271,12 @@ int vp_mac_add_into_map(struct bpf_map* map, char* mac, int ifindex) {
 }
 
 int vp_mac_remove_from_map(struct bpf_map* map, char* mac) {
-    int map_fd = bpf_map__fd(map);
-    if (map_fd < 0) {
-        fprintf(stderr, "ERR: bfp_map__fd failed: %d %s\n",
-                -map_fd, strerror(-map_fd));
-        return -1;
-    }
-    int ret = bpf_map_delete_elem(map_fd, &mac);
+    int ret = bpf_map__delete_elem(map, &mac, 6, 0);
     if (ret) {
         fprintf(stderr, "ERR: bpf_map_delete_elem failed\n");
         return -1;
     }
     return 0;
-}
-
-int vp_xsk_socket_fd(struct vp_xsk_info* xsk) {
-    return xsk_socket__fd(xsk->xsk);
 }
 
 void vp_xsk_close(struct vp_xsk_info* xsk) {
@@ -360,11 +346,7 @@ void vp_xdp_fill_ring_fillup(struct vp_umem_info* umem) {
 int vp_xdp_fetch_pkt(struct vp_xsk_info* xsk, uint32_t* idx_rx_ptr, struct vp_chunk_info** chunkptr) {
     if ((int)(*idx_rx_ptr) < 0) {
         unsigned int rcvd = xsk_ring_cons__peek(&xsk->rx, xsk->rx_ring_size, idx_rx_ptr);
-        if (!rcvd) {
-            return 0;
-        } else {
-            return rcvd;
-        }
+        return rcvd;
     }
 
     uint32_t idx_rx = *idx_rx_ptr;
@@ -402,8 +384,21 @@ int vp_xdp_write_pkt(struct vp_xsk_info* xsk, struct vp_chunk_info* chunk) {
         return -1;
     }
 
+    xsk_ring_prod__tx_desc(&xsk->tx, tx_idx)->options = 0;
     if (chunk->csum_flags) {
-        vp_pkt_ether_csum(chunk->realaddr + (chunk->pktaddr - chunk->addr), chunk->pktlen, chunk->csum_flags);
+        char* pkt_addr = chunk->realaddr + (chunk->pktaddr - chunk->addr);
+        struct vp_csum_out out = { 0 };
+        int err = vp_pkt_ether_csum_ex(pkt_addr, chunk->pktlen, chunk->csum_flags, &out);
+
+        if (!err && (chunk->csum_flags & VP_CSUM_XDP_OFFLOAD)
+                 && (chunk->umem->tx_metadata_len > 0)
+                 && (chunk->pktaddr - chunk->addr >= chunk->umem->tx_metadata_len)) {
+            xsk_ring_prod__tx_desc(&xsk->tx, tx_idx)->options |= XDP_UMEM_TX_SW_CSUM;
+            struct xsk_tx_metadata* meta = (void*)(pkt_addr - chunk->umem->tx_metadata_len);
+            meta->flags = XDP_TXMD_FLAGS_CHECKSUM;
+            meta->request.csum_start = (out.up_pos - pkt_addr);
+            meta->request.csum_offset = (out.up_csum_pos - pkt_addr);
+        }
     }
 
     xsk_ring_prod__tx_desc(&xsk->tx, tx_idx)->addr = chunk->pktaddr;
@@ -417,7 +412,7 @@ int vp_xdp_write_pkt(struct vp_xsk_info* xsk, struct vp_chunk_info* chunk) {
     return 0;
 }
 
-int vp_xdp_write_pkts(struct vp_xsk_info* xsk, int size, long* chunk_ptrs) {
+int vp_xdp_write_pkts(struct vp_xsk_info* xsk, int size, struct vp_chunk_info** chunk_ptrs) {
     int free_size = xsk_prod_nb_free(&xsk->tx, size);
     if (free_size == 0) {
         return 0;
@@ -431,10 +426,23 @@ int vp_xdp_write_pkts(struct vp_xsk_info* xsk, int size, long* chunk_ptrs) {
         return 0;
     }
     for (int i = 0; i < ret; ++i) {
-        struct vp_chunk_info* chunk = (struct vp_chunk_info*) chunk_ptrs[i];
+        struct vp_chunk_info* chunk = chunk_ptrs[i];
 
+        xsk_ring_prod__tx_desc(&xsk->tx, tx_idx + i)->options = 0;
         if (chunk->csum_flags) {
-            vp_pkt_ether_csum(chunk->realaddr + (chunk->pktaddr - chunk->addr), chunk->pktlen, chunk->csum_flags);
+            char* pkt_addr = chunk->realaddr + (chunk->pktaddr - chunk->addr);
+            struct vp_csum_out out = { 0 };
+            int err = vp_pkt_ether_csum_ex(pkt_addr, chunk->pktlen, chunk->csum_flags, &out);
+
+            if (!err && (chunk->csum_flags & VP_CSUM_XDP_OFFLOAD)
+                     && (chunk->umem->tx_metadata_len > 0)
+                     && (chunk->pktaddr - chunk->addr >= chunk->umem->tx_metadata_len)) {
+                xsk_ring_prod__tx_desc(&xsk->tx, tx_idx + i)->options |= XDP_UMEM_TX_SW_CSUM;
+                struct xsk_tx_metadata* meta = (void*)(pkt_addr - chunk->umem->tx_metadata_len);
+                meta->flags = XDP_TXMD_FLAGS_CHECKSUM;
+                meta->request.csum_start = (out.up_pos - pkt_addr);
+                meta->request.csum_offset = (out.up_csum_pos - pkt_addr);
+            }
         }
 
         xsk_ring_prod__tx_desc(&xsk->tx, tx_idx + i)->addr = chunk->pktaddr;

@@ -1,10 +1,19 @@
 #ifndef VPROXY_CHECKSUM_H
 #define VPROXY_CHECKSUM_H
 
-#define VP_CSUM_NO (0)
-#define VP_CSUM_IP (1)
-#define VP_CSUM_UP (2)
+#define VP_CSUM_NO        (0)
+#define VP_CSUM_IP        (1 << 0)
+#define VP_CSUM_UP        (1 << 1)
+#define VP_CSUM_UP_PSEUDO (1 << 2)
+
 #define VP_CSUM_ALL (VP_CSUM_UP | VP_CSUM_IP)
+
+#define VP_CSUM_XDP_OFFLOAD (1 << 16)
+
+struct vp_csum_out {
+    char* up_pos;
+    char* up_csum_pos;
+};
 
 inline int vp_csum_calc0(int sum, char* data, int len) {
     for (int i = 0; i < len / 2; ++i) {
@@ -59,6 +68,7 @@ inline int vp_csum_ipv6_pseudo_calc(char* src, char* dst, char proto, char* data
     return 0xffff - sum;
 }
 
-int vp_pkt_ether_csum(char* raw, int len, int flags);
+int vp_pkt_ether_csum   (char* raw, int len, int flags);
+int vp_pkt_ether_csum_ex(char* raw, int len, int flags, struct vp_csum_out* out);
 
 #endif

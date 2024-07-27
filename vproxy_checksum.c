@@ -103,8 +103,11 @@ char* vp_pkt_ipv6_skip_to_last_hdr(char* raw, int len, char* proto) {
     return xh_buf;
 }
 
-int vp_pkt_icmp4_csum(char* raw, int len, int flags) {
-    if (!(flags & VP_CSUM_UP)) {
+int vp_pkt_icmp4_csum(char* raw, int len, int flags, struct vp_csum_out* out) {
+    if (out != NULL) {
+        out->up_csum_pos = raw + ICMP_CSUM_OFF;
+    }
+    if (!(flags & VP_CSUM_UP) && !(flags & VP_CSUM_UP_PSEUDO)) {
         return 0;
     }
 
@@ -116,14 +119,22 @@ int vp_pkt_icmp4_csum(char* raw, int len, int flags) {
     }
     raw[ICMP_CSUM_OFF] = 0;
     raw[ICMP_CSUM_OFF + 1] = 0;
+
+    if (!(flags & VP_CSUM_UP)) {
+        return 0;
+    }
+
     int csum = vp_csum_plain_calc(raw, len);
     raw[ICMP_CSUM_OFF] = (csum >> 8) & 0xff;
     raw[ICMP_CSUM_OFF + 1] = csum & 0xff;
     return 0;
 }
 
-int vp_pkt_tcp4_csum(char* ip, char* raw, int len, int flags) {
-    if (!(flags & VP_CSUM_UP)) {
+int vp_pkt_tcp4_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out* out) {
+    if (out != NULL) {
+        out->up_csum_pos = raw + TCP_CSUM_OFF;
+    }
+    if (!(flags & VP_CSUM_UP) && !(flags & VP_CSUM_UP_PSEUDO)) {
         return 0;
     }
 
@@ -135,14 +146,22 @@ int vp_pkt_tcp4_csum(char* ip, char* raw, int len, int flags) {
     }
     raw[TCP_CSUM_OFF] = 0;
     raw[TCP_CSUM_OFF + 1] = 0;
-    int csum = vp_csum_ipv4_pseudo_calc(ip + IP4_SRC_OFF, ip + IP4_DST_OFF, IP_PROTOCOL_TCP, raw, len);
+    int csum;
+    if (flags & VP_CSUM_UP) {
+        csum = vp_csum_ipv4_pseudo_calc(ip + IP4_SRC_OFF, ip + IP4_DST_OFF, IP_PROTOCOL_TCP, raw, len);
+    } else {
+        csum = vp_csum_ipv4_pseudo_calc(ip + IP4_SRC_OFF, ip + IP4_DST_OFF, IP_PROTOCOL_TCP, NULL, 0);
+    }
     raw[TCP_CSUM_OFF] = (csum >> 8) & 0xff;
     raw[TCP_CSUM_OFF + 1] = csum & 0xff;
     return 0;
 }
 
-int vp_pkt_udp4_csum(char* ip, char* raw, int len, int flags) {
-    if (!(flags & VP_CSUM_UP)) {
+int vp_pkt_udp4_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out* out) {
+    if (out != NULL) {
+        out->up_csum_pos = raw + UDP_CSUM_OFF;
+    }
+    if (!(flags & VP_CSUM_UP) && !(flags & VP_CSUM_UP_PSEUDO)) {
         return 0;
     }
 
@@ -154,16 +173,21 @@ int vp_pkt_udp4_csum(char* ip, char* raw, int len, int flags) {
     }
     raw[UDP_CSUM_OFF] = 0;
     raw[UDP_CSUM_OFF + 1] = 0;
-    int csum = vp_csum_ipv4_pseudo_calc(ip + IP4_SRC_OFF, ip + IP4_DST_OFF, IP_PROTOCOL_UDP, raw, len);
-    if (csum == 0) {
-        csum = 0xffff;
+    int csum;
+    if (flags & VP_CSUM_UP) {
+        csum = vp_csum_ipv4_pseudo_calc(ip + IP4_SRC_OFF, ip + IP4_DST_OFF, IP_PROTOCOL_UDP, raw, len);
+        if (csum == 0) {
+            csum = 0xffff;
+        }
+    } else {
+        csum = vp_csum_ipv4_pseudo_calc(ip + IP4_SRC_OFF, ip + IP4_DST_OFF, IP_PROTOCOL_UDP, NULL, 0);
     }
     raw[UDP_CSUM_OFF] = (csum >> 8) & 0xff;
     raw[UDP_CSUM_OFF + 1] = csum & 0xff;
     return 0;
 }
 
-int vp_pkt_ipv4_csum(char* raw, int len, int flags) {
+int vp_pkt_ipv4_csum(char* raw, int len, int flags, struct vp_csum_out* out) {
     if (len < IP4_HDR_MIN_LEN) {
         #ifdef VP_CSUM_DEBUG
         printf("pkt too short for ipv4\n");
@@ -200,19 +224,22 @@ int vp_pkt_ipv4_csum(char* raw, int len, int flags) {
     }
 
     char* upper = raw + hdr_len;
+    if (out != NULL) {
+        out->up_pos = upper;
+    }
     int upper_len = total_len - hdr_len;
     int proto = vp_pkt_ipv4_proto(raw);
     if (proto == IP_PROTOCOL_ICMP) {
-        return vp_pkt_icmp4_csum(upper, upper_len, flags);
+        return vp_pkt_icmp4_csum(upper, upper_len, flags, out);
     } else if (proto == IP_PROTOCOL_ICMPv6) {
         #ifdef VP_CSUM_DEBUG
         printf("ipv4 pkt but got icmp6\n");
         #endif
         return 1;
     } else if (proto == IP_PROTOCOL_TCP) {
-        return vp_pkt_tcp4_csum(raw, upper, upper_len, flags);
+        return vp_pkt_tcp4_csum(raw, upper, upper_len, flags, out);
     } else if (proto == IP_PROTOCOL_UDP) {
-        return vp_pkt_udp4_csum(raw, upper, upper_len, flags);
+        return vp_pkt_udp4_csum(raw, upper, upper_len, flags, out);
     } else {
         #ifdef VP_CSUM_DEBUG
         printf("unhandled ip proto\n");
@@ -221,8 +248,11 @@ int vp_pkt_ipv4_csum(char* raw, int len, int flags) {
     }
 }
 
-int vp_pkt_icmp6_csum(char* ip, char* raw, int len, int flags) {
-    if (!(flags & VP_CSUM_UP)) {
+int vp_pkt_icmp6_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out* out) {
+    if (out != NULL) {
+        out->up_csum_pos = raw + ICMP_CSUM_OFF;
+    }
+    if (!(flags & VP_CSUM_UP) && !(flags & VP_CSUM_UP_PSEUDO)) {
         return 0;
     }
 
@@ -234,14 +264,22 @@ int vp_pkt_icmp6_csum(char* ip, char* raw, int len, int flags) {
     }
     raw[ICMP_CSUM_OFF] = 0;
     raw[ICMP_CSUM_OFF + 1] = 0;
-    int csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_ICMPv6, raw, len);
+    int csum;
+    if (flags & VP_CSUM_UP) {
+        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_ICMPv6, raw, len);
+    } else {
+        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_ICMPv6, NULL, 0);
+    }
     raw[ICMP_CSUM_OFF] = (csum >> 8) & 0xff;
     raw[ICMP_CSUM_OFF + 1] = csum & 0xff;
     return 0;
 }
 
-int vp_pkt_tcp6_csum(char* ip, char* raw, int len, int flags) {
-    if (!(flags & VP_CSUM_UP)) {
+int vp_pkt_tcp6_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out* out) {
+    if (out != NULL) {
+        out->up_csum_pos = raw + TCP_CSUM_OFF;
+    }
+    if (!(flags & VP_CSUM_UP) && !(flags & VP_CSUM_UP_PSEUDO)) {
         return 0;
     }
 
@@ -253,14 +291,22 @@ int vp_pkt_tcp6_csum(char* ip, char* raw, int len, int flags) {
     }
     raw[TCP_CSUM_OFF] = 0;
     raw[TCP_CSUM_OFF + 1] = 0;
-    int csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_TCP, raw, len);
+    int csum;
+    if (flags & VP_CSUM_UP) {
+        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_TCP, raw, len);
+    } else {
+        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_TCP, NULL, 0);
+    }
     raw[TCP_CSUM_OFF] = (csum >> 8) & 0xff;
     raw[TCP_CSUM_OFF + 1] = csum & 0xff;
     return 0;
 }
 
-int vp_pkt_udp6_csum(char* ip, char* raw, int len, int flags) {
-    if (!(flags & VP_CSUM_UP)) {
+int vp_pkt_udp6_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out* out) {
+    if (out != NULL) {
+        out->up_csum_pos = raw + UDP_CSUM_OFF;
+    }
+    if (!(flags & VP_CSUM_UP) && !(flags & VP_CSUM_UP_PSEUDO)) {
         return 0;
     }
 
@@ -272,16 +318,21 @@ int vp_pkt_udp6_csum(char* ip, char* raw, int len, int flags) {
     }
     raw[UDP_CSUM_OFF] = 0;
     raw[UDP_CSUM_OFF + 1] = 0;
-    int csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_UDP, raw, len);
-    if (csum == 0) {
-        csum = 0xffff;
+    int csum;
+    if (flags & VP_CSUM_UP) {
+        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_UDP, raw, len);
+        if (csum == 0) {
+            csum = 0xffff;
+        }
+    } else {
+        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_UDP, NULL, 0);
     }
     raw[UDP_CSUM_OFF] = (csum >> 8) & 0xff;
     raw[UDP_CSUM_OFF + 1] = csum & 0xff;
     return 0;
 }
 
-int vp_pkt_ipv6_csum(char* raw, int len, int flags) {
+int vp_pkt_ipv6_csum(char* raw, int len, int flags, struct vp_csum_out* out) {
     if (len < IP6_HDR_MIN_LEN) {
         #ifdef VP_CSUM_DEBUG
         printf("pkt too short for ipv6\n");
@@ -305,15 +356,18 @@ int vp_pkt_ipv6_csum(char* raw, int len, int flags) {
         }
         xh = proto & 0xff;
     }
+    if (out != NULL) {
+        out->up_pos = upper;
+    }
     int upper_len = payload_len - (upper - raw - IP6_HDR_MIN_LEN);
     if (xh == IP_PROTOCOL_ICMP) {
-        return vp_pkt_icmp4_csum(upper, upper_len, flags);
+        return vp_pkt_icmp4_csum(upper, upper_len, flags, out);
     } else if (xh == IP_PROTOCOL_ICMPv6) {
-        return vp_pkt_icmp6_csum(raw, upper, upper_len, flags);
+        return vp_pkt_icmp6_csum(raw, upper, upper_len, flags, out);
     } else if (xh == IP_PROTOCOL_TCP) {
-        return vp_pkt_tcp6_csum(raw, upper, upper_len, flags);
+        return vp_pkt_tcp6_csum(raw, upper, upper_len, flags, out);
     } else if (xh == IP_PROTOCOL_UDP) {
-        return vp_pkt_udp6_csum(raw, upper, upper_len, flags);
+        return vp_pkt_udp6_csum(raw, upper, upper_len, flags, out);
     } else {
         #ifdef VP_CSUM_DEBUG
         printf("unhandled ip6 proto\n");
@@ -323,6 +377,10 @@ int vp_pkt_ipv6_csum(char* raw, int len, int flags) {
 }
 
 int vp_pkt_ether_csum(char* raw, int len, int flags) {
+    return vp_pkt_ether_csum_ex(raw, len, flags, NULL);
+}
+
+int vp_pkt_ether_csum_ex(char* raw, int len, int flags, struct vp_csum_out* out) {
     if (flags == VP_CSUM_NO) {
         #ifdef VP_CSUM_DEBUG
         printf("no need to calculate\n");
@@ -356,8 +414,8 @@ int vp_pkt_ether_csum(char* raw, int len, int flags) {
         return 1;
     }
     if (ether_type == ETHER_TYPE_IPv4) {
-        return vp_pkt_ipv4_csum(ippkt, ip_len, flags);
+        return vp_pkt_ipv4_csum(ippkt, ip_len, flags, out);
     } else {
-        return vp_pkt_ipv6_csum(ippkt, ip_len, flags);
+        return vp_pkt_ipv6_csum(ippkt, ip_len, flags, out);
     }
 }
