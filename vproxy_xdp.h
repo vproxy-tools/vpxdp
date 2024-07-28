@@ -29,7 +29,7 @@ struct vp_chunk_info {
 };
 
 struct vp_chunk_array {
-    int frame_count;
+    int frame_size;
     int size;
     int used;
     int idx; // for fetching chunks
@@ -71,8 +71,8 @@ struct bpf_object* vp_bpfobj_attach_to_if    (char* filepath, char* prog, char* 
 int                vp_bpfobj_detach_from_if  (char* ifname);
 struct bpf_map*    vp_bpfobj_find_map_by_name(struct bpf_object* bpfobj, char* name);
 
-struct vp_umem_info* vp_umem_create(int chunks_size, int fill_ring_size, int comp_ring_size,
-                                    uint64_t frame_count, int headroom, int meta_len);
+struct vp_umem_info* vp_umem_create(int chunks_count, int fill_ring_size, int comp_ring_size,
+                                    uint64_t frame_size, int headroom, int meta_len);
 struct vp_umem_info* vp_umem_share (struct vp_umem_info* umem);
 struct vp_xsk_info*  vp_xsk_create (char* ifname, int queue_id, struct vp_umem_info* umem,
                                     int rx_ring_size, int tx_ring_size, int xdp_flags, int bind_flags,
@@ -102,7 +102,7 @@ void vp_xdp_complete_tx(struct vp_xsk_info* xsk);
 void vp_bpfobj_release(struct bpf_object* bpf_obj);
 
 static inline struct vp_chunk_info* vp_chunk_seek(struct vp_chunk_array* chunks, uint64_t addroff) {
-    return &chunks->array[addroff / chunks->frame_count];
+    return &chunks->array[addroff / chunks->frame_size];
 }
 
 static inline struct vp_chunk_info* vp_chunk_fetch(struct vp_chunk_array* chunks) {

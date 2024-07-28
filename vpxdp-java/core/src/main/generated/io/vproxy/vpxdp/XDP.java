@@ -42,12 +42,12 @@ public class XDP {
         return RESULT;
     }
 
-    private static final MethodHandle createUMemMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), io.vproxy.vpxdp.UMemInfo.LAYOUT.getClass(), "vp_umem_create", int.class /* chunkSize */, int.class /* fillRingSize */, int.class /* compRingSize */, int.class /* frameCount */, int.class /* headroom */, int.class /* metaLen */);
+    private static final MethodHandle createUMemMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), io.vproxy.vpxdp.UMemInfo.LAYOUT.getClass(), "vp_umem_create", int.class /* chunksCount */, int.class /* fillRingSize */, int.class /* compRingSize */, int.class /* frameSize */, int.class /* headroom */, int.class /* metaLen */);
 
-    public io.vproxy.vpxdp.UMemInfo createUMem(int chunkSize, int fillRingSize, int compRingSize, int frameCount, int headroom, int metaLen) {
+    public io.vproxy.vpxdp.UMemInfo createUMem(int chunksCount, int fillRingSize, int compRingSize, int frameSize, int headroom, int metaLen) {
         MemorySegment RESULT;
         try {
-            RESULT = (MemorySegment) createUMemMH.invokeExact(chunkSize, fillRingSize, compRingSize, frameCount, headroom, metaLen);
+            RESULT = (MemorySegment) createUMemMH.invokeExact(chunksCount, fillRingSize, compRingSize, frameSize, headroom, metaLen);
         } catch (Throwable THROWABLE) {
             throw PanamaUtils.convertInvokeExactException(THROWABLE);
         }
@@ -68,5 +68,5 @@ public class XDP {
         return RESULT == null ? null : new io.vproxy.vpxdp.XskInfo(RESULT);
     }
 }
-// metadata.generator-version: pni 21.0.0.20
-// sha256:2ac6f8cf0b8d9f79533a9cb5063ca6992bb30343e72f96e76f1ef49ca047cb12
+// metadata.generator-version: pni 0.0.20
+// sha256:9469a510b3a7f4b5a19cc7e6c06eae6d22585ccb7d79f57765f57d7c0d412885

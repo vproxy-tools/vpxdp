@@ -92,7 +92,7 @@ class PNIChunkInfo {
 
 @Struct
 abstract class PNIChunkArray {
-    int frameCount;
+    int frameSize;
     int size;
     int used;
     int idx; // for fetching chunks
@@ -133,7 +133,7 @@ interface PNIXDP {
     @Style(Styles.critical)
     @LinkerOption.Critical
     @NoAlloc
-    PNIUMemInfo createUMem(int chunkSize, int fillRingSize, int compRingSize, int frameCount, int headroom, int metaLen);
+    PNIUMemInfo createUMem(int chunksCount, int fillRingSize, int compRingSize, int frameSize, int headroom, int metaLen);
 
     @Name("vp_xsk_create")
     @Style(Styles.critical)

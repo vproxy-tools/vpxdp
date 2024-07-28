@@ -89,14 +89,14 @@ struct bpf_map* vp_bpfobj_find_map_by_name(struct bpf_object* bpfobj, char* name
     return ret;
 }
 
-struct vp_umem_info* vp_umem_create(int chunks_size, int fill_ring_size, int comp_ring_size,
-                                    uint64_t frame_count, int headroom, int meta_len) {
-    if (chunks_size < fill_ring_size) {
-        fprintf(stderr, "WARN: chunks_size %d < fill_ring_size %d, set chunks_size to fill_ring_size",
-                chunks_size, fill_ring_size);
-        chunks_size = fill_ring_size;
+struct vp_umem_info* vp_umem_create(int chunks_count, int fill_ring_size, int comp_ring_size,
+                                    uint64_t frame_size, int headroom, int meta_len) {
+    if (chunks_count < fill_ring_size) {
+        fprintf(stderr, "WARN: chunks_count %d < fill_ring_size %d, set chunks_count to fill_ring_size",
+                chunks_count, fill_ring_size);
+        chunks_count = fill_ring_size;
     }
-    int mem_size = chunks_size * frame_count;
+    int mem_size = chunks_count * frame_size;
 
     void* buffer = NULL;
     struct vp_umem_info* umem = NULL;
@@ -109,7 +109,7 @@ struct vp_umem_info* vp_umem_create(int chunks_size, int fill_ring_size, int com
 
     umem = calloc(1, sizeof(struct vp_umem_info) +
                      sizeof(struct vp_chunk_array) +
-                     chunks_size * sizeof(struct vp_chunk_info));
+                     chunks_count * sizeof(struct vp_chunk_info));
     if (!umem) {
         fprintf(stderr, "ERR: allocating umem info failed");
         goto err;
@@ -118,7 +118,7 @@ struct vp_umem_info* vp_umem_create(int chunks_size, int fill_ring_size, int com
     struct xsk_umem_config umem_config = {
         .fill_size = fill_ring_size,
         .comp_size = comp_ring_size,
-        .frame_size = frame_count,
+        .frame_size = frame_size,
         .frame_headroom = headroom,
         .tx_metadata_len = meta_len,
         .flags = 0
@@ -135,17 +135,17 @@ struct vp_umem_info* vp_umem_create(int chunks_size, int fill_ring_size, int com
     umem->buffer_size = mem_size;
 
     umem->chunks = (struct vp_chunk_array*) (((size_t)umem) + sizeof(struct vp_umem_info));
-    umem->chunks->frame_count = frame_count;
-    umem->chunks->size = chunks_size;
+    umem->chunks->frame_size = frame_size;
+    umem->chunks->size = chunks_count;
     umem->chunks->used = 0;
     umem->chunks->idx = 0;
     umem->chunks->array = (struct vp_chunk_info*) (((size_t)umem) + sizeof(struct vp_umem_info) + sizeof(struct vp_chunk_array));
-    for (int i = 0; i < chunks_size; ++i) {
+    for (int i = 0; i < chunks_count; ++i) {
         umem->chunks->array[i].umem = umem;
         umem->chunks->array[i].xsk = NULL;
         umem->chunks->array[i].ref = 0;
-        umem->chunks->array[i].addr = i * frame_count;
-        umem->chunks->array[i].endaddr = (i + 1) * frame_count;
+        umem->chunks->array[i].addr = i * frame_size;
+        umem->chunks->array[i].endaddr = (i + 1) * frame_size;
         umem->chunks->array[i].realaddr = (char*) (((size_t)buffer) + umem->chunks->array[i].addr);
         umem->chunks->array[i].pkt = NULL;
     }

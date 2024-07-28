@@ -9,7 +9,7 @@ import java.nio.ByteBuffer;
 
 public class ChunkArray extends AbstractNativeObject implements NativeObject {
     public static final MemoryLayout LAYOUT = MemoryLayout.structLayout(
-        ValueLayout.JAVA_INT.withName("frameCount"),
+        ValueLayout.JAVA_INT.withName("frameSize"),
         ValueLayout.JAVA_INT.withName("size"),
         ValueLayout.JAVA_INT.withName("used"),
         ValueLayout.JAVA_INT.withName("idx"),
@@ -22,18 +22,18 @@ public class ChunkArray extends AbstractNativeObject implements NativeObject {
         return MEMORY;
     }
 
-    private static final VarHandleW frameCountVH = VarHandleW.of(
+    private static final VarHandleW frameSizeVH = VarHandleW.of(
         LAYOUT.varHandle(
-            MemoryLayout.PathElement.groupElement("frameCount")
+            MemoryLayout.PathElement.groupElement("frameSize")
         )
     );
 
-    public int getFrameCount() {
-        return frameCountVH.getInt(MEMORY);
+    public int getFrameSize() {
+        return frameSizeVH.getInt(MEMORY);
     }
 
-    public void setFrameCount(int frameCount) {
-        frameCountVH.set(MEMORY, frameCount);
+    public void setFrameSize(int frameSize) {
+        frameSizeVH.set(MEMORY, frameSize);
     }
 
     private static final VarHandleW sizeVH = VarHandleW.of(
@@ -157,8 +157,8 @@ public class ChunkArray extends AbstractNativeObject implements NativeObject {
         }
         SB.append("ChunkArray{\n");
         {
-            SB.append(" ".repeat(INDENT + 4)).append("frameCount => ");
-            SB.append(getFrameCount());
+            SB.append(" ".repeat(INDENT + 4)).append("frameSize => ");
+            SB.append(getFrameSize());
         }
         SB.append(",\n");
         {
@@ -255,5 +255,5 @@ public class ChunkArray extends AbstractNativeObject implements NativeObject {
         }
     }
 }
-// metadata.generator-version: pni 21.0.0.20
-// sha256:c3e64d33144a57041d1f3c527563ea32f72d7121736a0c9a45e7a695c91876a0
+// metadata.generator-version: pni 0.0.20
+// sha256:01822c73f8c667f49a0742d95dd28e94479cccc04134f6d52d9adf10a57b6810
