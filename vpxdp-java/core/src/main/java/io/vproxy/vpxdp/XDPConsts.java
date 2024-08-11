@@ -20,6 +20,11 @@ public class XDPConsts {
     public static final int VP_CSUM_ALL = (VP_CSUM_UP | VP_CSUM_IP);
     public static final int VP_CSUM_XDP_OFFLOAD = (1 << 16);
 
+    public static final int VP_BPF_MAP_REUSE_TYPE_MAP = 1;
+    public static final int VP_BPF_MAP_REUSE_TYPE_PIN_PATH = 2;
+
     public static final short POLLIN = 1;
     public static final short POLLOUT = 4;
+
+    public static final int ENOENT = 2;
 }

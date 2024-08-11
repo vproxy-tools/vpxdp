@@ -71,9 +71,8 @@ public class SampleUser {
         fds.get(0).setFd(xsk.getXsk().fd());
         fds.get(0).setEvents(POLLIN);
 
-        Signal.handle(new Signal("INT"), _ -> {
-            sigint = true;
-        });
+        Signal.handle(new Signal("INT"), _ -> sigint = true);
+        Signal.handle(new Signal("TERM"), _ -> sigint = true);
 
         System.out.println("press ctrl-c to exit");
         int cnt = 0;

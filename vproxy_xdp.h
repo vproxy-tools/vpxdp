@@ -67,9 +67,26 @@ struct vp_xsk_info {
     int flags;
 };
 
+#define VP_BPF_MAP_REUSE_ARRAY_MAX  (4096)
+#define VP_BPF_MAP_REUSE_TYPE_MAP      (1)
+#define VP_BPF_MAP_REUSE_TYPE_PIN_PATH (2)
+struct vp_bpf_map_reuse {
+    char*    name;
+    int      type;
+    union {
+        struct bpf_map* map;
+        char*           pinpath;
+    };
+};
+
+struct bpf_object* vp_bpfobj_load            (char* filepath, struct vp_bpf_map_reuse* maps);
 struct bpf_object* vp_bpfobj_attach_to_if    (char* filepath, char* prog, char* ifname, int attach_flags);
 int                vp_bpfobj_detach_from_if  (char* ifname);
 struct bpf_map*    vp_bpfobj_find_map_by_name(struct bpf_object* bpfobj, char* name);
+
+// maps = [ { ... }, { 0 } ]
+struct bpf_object* vp_bpfobj_attach_to_if_and_reuse_map(
+                   char* filepath, char* prog, char* ifname, int attach_flags, struct vp_bpf_map_reuse* maps);
 
 struct vp_umem_info* vp_umem_create(int chunks_count, int fill_ring_size, int comp_ring_size,
                                     uint64_t frame_size, int headroom, int meta_len);
@@ -79,8 +96,7 @@ struct vp_xsk_info*  vp_xsk_create (char* ifname, int queue_id, struct vp_umem_i
                                     int busy_poll_budget, int vp_flags);
 
 int vp_xsk_add_into_map(struct bpf_map* map, int key, struct vp_xsk_info* xsk);
-int vp_mac_add_into_map(struct bpf_map* map, char* mac, char* ifname);
-int vp_mac_remove_from_map(struct bpf_map* map, char* mac);
+int vp_mac2port_add_into_map(struct bpf_map* map, char* mac, char* ifname);
 
 void vp_xsk_close (struct vp_xsk_info* xsk);
 void vp_umem_close(struct vp_umem_info* umem, bool clean_buffer);

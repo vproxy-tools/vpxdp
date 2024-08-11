@@ -40,24 +40,96 @@ public class BPFMap extends AbstractNativeObject implements NativeObject {
         return RESULT;
     }
 
-    private static final MethodHandle addMacMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "vp_mac_add_into_map", MemorySegment.class /* self */, MemorySegment.class /* mac */, String.class /* ifname */);
+    private static final MethodHandle addMac2PortMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "vp_mac2port_add_into_map", MemorySegment.class /* self */, MemorySegment.class /* mac */, String.class /* ifname */);
 
-    public int addMac(MemorySegment mac, PNIString ifname) {
+    public int addMac2Port(MemorySegment mac, PNIString ifname) {
         int RESULT;
         try {
-            RESULT = (int) addMacMH.invokeExact(MEMORY, (MemorySegment) (mac == null ? MemorySegment.NULL : mac), (MemorySegment) (ifname == null ? MemorySegment.NULL : ifname.MEMORY));
+            RESULT = (int) addMac2PortMH.invokeExact(MEMORY, (MemorySegment) (mac == null ? MemorySegment.NULL : mac), (MemorySegment) (ifname == null ? MemorySegment.NULL : ifname.MEMORY));
         } catch (Throwable THROWABLE) {
             throw PanamaUtils.convertInvokeExactException(THROWABLE);
         }
         return RESULT;
     }
 
-    private static final MethodHandle removeMacMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "vp_mac_remove_from_map", MemorySegment.class /* self */, MemorySegment.class /* mac */);
+    private static final MethodHandle lookupMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "bpf_map__lookup_elem", MemorySegment.class /* self */, MemorySegment.class /* key */, long.class /* keySize */, MemorySegment.class /* value */, long.class /* valueSize */, long.class /* flags */);
 
-    public int removeMac(MemorySegment mac) {
+    public int lookup(MemorySegment key, long keySize, MemorySegment value, long valueSize, long flags) {
         int RESULT;
         try {
-            RESULT = (int) removeMacMH.invokeExact(MEMORY, (MemorySegment) (mac == null ? MemorySegment.NULL : mac));
+            RESULT = (int) lookupMH.invokeExact(MEMORY, (MemorySegment) (key == null ? MemorySegment.NULL : key), keySize, (MemorySegment) (value == null ? MemorySegment.NULL : value), valueSize, flags);
+        } catch (Throwable THROWABLE) {
+            throw PanamaUtils.convertInvokeExactException(THROWABLE);
+        }
+        return RESULT;
+    }
+
+    private static final MethodHandle updateMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "bpf_map__update_elem", MemorySegment.class /* self */, MemorySegment.class /* key */, long.class /* keySize */, MemorySegment.class /* value */, long.class /* valueSize */, long.class /* flags */);
+
+    public int update(MemorySegment key, long keySize, MemorySegment value, long valueSize, long flags) {
+        int RESULT;
+        try {
+            RESULT = (int) updateMH.invokeExact(MEMORY, (MemorySegment) (key == null ? MemorySegment.NULL : key), keySize, (MemorySegment) (value == null ? MemorySegment.NULL : value), valueSize, flags);
+        } catch (Throwable THROWABLE) {
+            throw PanamaUtils.convertInvokeExactException(THROWABLE);
+        }
+        return RESULT;
+    }
+
+    private static final MethodHandle deleteMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "bpf_map__delete_elem", MemorySegment.class /* self */, MemorySegment.class /* key */, long.class /* keySize */);
+
+    public int delete(MemorySegment key, long keySize) {
+        int RESULT;
+        try {
+            RESULT = (int) deleteMH.invokeExact(MEMORY, (MemorySegment) (key == null ? MemorySegment.NULL : key), keySize);
+        } catch (Throwable THROWABLE) {
+            throw PanamaUtils.convertInvokeExactException(THROWABLE);
+        }
+        return RESULT;
+    }
+
+    private static final MethodHandle pinMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "bpf_map__pin", MemorySegment.class /* self */, String.class /* path */);
+
+    public int pin(PNIString path) {
+        int RESULT;
+        try {
+            RESULT = (int) pinMH.invokeExact(MEMORY, (MemorySegment) (path == null ? MemorySegment.NULL : path.MEMORY));
+        } catch (Throwable THROWABLE) {
+            throw PanamaUtils.convertInvokeExactException(THROWABLE);
+        }
+        return RESULT;
+    }
+
+    private static final MethodHandle unpinMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "bpf_map__unpin", MemorySegment.class /* self */, String.class /* path */);
+
+    public int unpin(PNIString path) {
+        int RESULT;
+        try {
+            RESULT = (int) unpinMH.invokeExact(MEMORY, (MemorySegment) (path == null ? MemorySegment.NULL : path.MEMORY));
+        } catch (Throwable THROWABLE) {
+            throw PanamaUtils.convertInvokeExactException(THROWABLE);
+        }
+        return RESULT;
+    }
+
+    private static final MethodHandle getPinPathMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), String.class, "bpf_map__pin_path", MemorySegment.class /* self */);
+
+    public PNIString getPinPath() {
+        MemorySegment RESULT;
+        try {
+            RESULT = (MemorySegment) getPinPathMH.invokeExact(MEMORY);
+        } catch (Throwable THROWABLE) {
+            throw PanamaUtils.convertInvokeExactException(THROWABLE);
+        }
+        return RESULT.address() == 0 ? null : new PNIString(RESULT);
+    }
+
+    private static final MethodHandle getNextKeyMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "bpf_map__get_next_key", MemorySegment.class /* self */, MemorySegment.class /* cur */, MemorySegment.class /* nx */, long.class /* keySize */);
+
+    public int getNextKey(MemorySegment cur, MemorySegment nx, long keySize) {
+        int RESULT;
+        try {
+            RESULT = (int) getNextKeyMH.invokeExact(MEMORY, (MemorySegment) (cur == null ? MemorySegment.NULL : cur), (MemorySegment) (nx == null ? MemorySegment.NULL : nx), keySize);
         } catch (Throwable THROWABLE) {
             throw PanamaUtils.convertInvokeExactException(THROWABLE);
         }
@@ -144,5 +216,5 @@ public class BPFMap extends AbstractNativeObject implements NativeObject {
         }
     }
 }
-// metadata.generator-version: pni 21.0.0.20
-// sha256:19a844af4853c26c65bfb7e29fe5590c1e0ba5383438b965842fadb603a045bd
+// metadata.generator-version: pni 0.0.20
+// sha256:663d2ca06285a42fc7912f20433223c0a3e8fe0dd77b4f002522884ee24401df

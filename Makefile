@@ -20,6 +20,7 @@ clean:
 	rm -f sample_kern.ll
 	rm -f sample_kern.o
 	rm -f libvpxdp.so
+	cd prebuilt && make clean
 	cd vpxdp-java && ./gradlew clean
 
 .PHONY: xdptools
@@ -46,8 +47,12 @@ so: xdptools
 		vproxy_xdp.c vproxy_xdp_util.c vproxy_checksum.c expose_inline.c \
 		-lxdp -lelf
 
+.PHONY: prebuilt
+prebuilt:
+	cd prebuilt && make
+
 .PHONY: all
-all: so sample_user sample_kern
+all: so sample_user sample_kern prebuilt
 
 .PHONY: prepare
 prepare:
@@ -65,8 +70,35 @@ run: sample_kern sample_user
 run-java: so sample_kern
 	cd vpxdp-java && ./gradlew runSample --args=$(filter-out $@,$(MAKECMDGOALS))
 
+.PHONY: prepare
+prepare2:
+	ip link add v0o type veth peer name v0
+	ip link add v1o type veth peer name v1
+	ip netns add v0
+	ip netns add v1
+	ip link set v0 netns v0
+	ip link set v1 netns v1
+	ip netns exec v0 /bin/bash -c " \
+		ip link set v0 name eth0 && \
+		ip link set eth0 address '00:00:00:00:00:01' && \
+		ip link set eth0 up && \
+		ip addr add 192.168.1.100/24 dev eth0 && \
+		ip neigh add 192.168.1.101 dev eth0 lladdr '00:00:00:00:00:02'"
+	ip netns exec v1 /bin/bash -c " \
+		ip link set v1 name eth0 && \
+		ip link set eth0 address '00:00:00:00:00:02' && \
+		ip link set eth0 up && \
+		ip addr add 192.168.1.101/24 dev eth0 && \
+		ip neigh add 192.168.1.100 dev eth0 lladdr '00:00:00:00:00:01'"
+	ip link set v0o up
+	ip link set v1o up
+
+.PHONY: run-java2
+run-java2: so prebuilt
+	cd vpxdp-java && ./gradlew runSample2
+
 .PHONY: docker-run
 docker-run:
 	docker run --name=vpxdp-sample --rm \
-		--net=host --privileged -it -v `pwd`:/vproxy \
+		--net=host --privileged -it -v `pwd`:/vproxy -v /sys/fs/bpf:/sys/fs/bpf \
 		vproxyio/compile:latest /bin/bash

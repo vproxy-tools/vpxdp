@@ -116,13 +116,38 @@ abstract class PNIChunkArray {
     abstract void releaseChunk(PNIChunkInfo chunk);
 }
 
+@Struct
+class PNIBPFMapReuse {
+    String name;
+    @Unsigned int type;
+    PNIBPFMapReuseUnion union;
+}
+
+@Union
+class PNIBPFMapReuseUnion {
+    @Pointer PNIBPFMap map;
+    String pinpath;
+}
+
 @Downcall
 interface PNIXDP {
+    @Name("vp_bpfobj_load")
+    @Style(Styles.critical)
+    @LinkerOption.Critical
+    @NoAlloc
+    PNIBPFObject loadBPFObject(String filepath, @Raw PNIBPFMapReuse[] maps);
+
     @Name("vp_bpfobj_attach_to_if")
     @Style(Styles.critical)
     @LinkerOption.Critical
     @NoAlloc
     PNIBPFObject attachBPFObjectToIf(String filepath, String prog, String ifname, int attachFlags);
+
+    @Name("vp_bpfobj_attach_to_if_and_reuse_map")
+    @Style(Styles.critical)
+    @LinkerOption.Critical
+    @NoAlloc
+    PNIBPFObject attachBPFObjectToIfReuseMap(String filepath, String prog, String ifname, int attachFlags, @Raw PNIBPFMapReuse[] maps);
 
     @Name("vp_bpfobj_detach_from_if")
     @Style(Styles.critical)

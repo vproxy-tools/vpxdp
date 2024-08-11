@@ -17,12 +17,38 @@ public class XDP {
         return INSTANCE;
     }
 
+    private static final MethodHandle loadBPFObjectMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), io.vproxy.vpxdp.BPFObject.LAYOUT.getClass(), "vp_bpfobj_load", String.class /* filepath */, MemorySegment.class /* maps */);
+
+    public io.vproxy.vpxdp.BPFObject loadBPFObject(PNIString filepath, io.vproxy.vpxdp.BPFMapReuse.Array maps) {
+        MemorySegment RESULT;
+        try {
+            RESULT = (MemorySegment) loadBPFObjectMH.invokeExact((MemorySegment) (filepath == null ? MemorySegment.NULL : filepath.MEMORY), (MemorySegment) (maps == null ? MemorySegment.NULL : maps.MEMORY));
+        } catch (Throwable THROWABLE) {
+            throw PanamaUtils.convertInvokeExactException(THROWABLE);
+        }
+        if (RESULT.address() == 0) return null;
+        return RESULT == null ? null : new io.vproxy.vpxdp.BPFObject(RESULT);
+    }
+
     private static final MethodHandle attachBPFObjectToIfMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), io.vproxy.vpxdp.BPFObject.LAYOUT.getClass(), "vp_bpfobj_attach_to_if", String.class /* filepath */, String.class /* prog */, String.class /* ifname */, int.class /* attachFlags */);
 
     public io.vproxy.vpxdp.BPFObject attachBPFObjectToIf(PNIString filepath, PNIString prog, PNIString ifname, int attachFlags) {
         MemorySegment RESULT;
         try {
             RESULT = (MemorySegment) attachBPFObjectToIfMH.invokeExact((MemorySegment) (filepath == null ? MemorySegment.NULL : filepath.MEMORY), (MemorySegment) (prog == null ? MemorySegment.NULL : prog.MEMORY), (MemorySegment) (ifname == null ? MemorySegment.NULL : ifname.MEMORY), attachFlags);
+        } catch (Throwable THROWABLE) {
+            throw PanamaUtils.convertInvokeExactException(THROWABLE);
+        }
+        if (RESULT.address() == 0) return null;
+        return RESULT == null ? null : new io.vproxy.vpxdp.BPFObject(RESULT);
+    }
+
+    private static final MethodHandle attachBPFObjectToIfReuseMapMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), io.vproxy.vpxdp.BPFObject.LAYOUT.getClass(), "vp_bpfobj_attach_to_if_and_reuse_map", String.class /* filepath */, String.class /* prog */, String.class /* ifname */, int.class /* attachFlags */, MemorySegment.class /* maps */);
+
+    public io.vproxy.vpxdp.BPFObject attachBPFObjectToIfReuseMap(PNIString filepath, PNIString prog, PNIString ifname, int attachFlags, io.vproxy.vpxdp.BPFMapReuse.Array maps) {
+        MemorySegment RESULT;
+        try {
+            RESULT = (MemorySegment) attachBPFObjectToIfReuseMapMH.invokeExact((MemorySegment) (filepath == null ? MemorySegment.NULL : filepath.MEMORY), (MemorySegment) (prog == null ? MemorySegment.NULL : prog.MEMORY), (MemorySegment) (ifname == null ? MemorySegment.NULL : ifname.MEMORY), attachFlags, (MemorySegment) (maps == null ? MemorySegment.NULL : maps.MEMORY));
         } catch (Throwable THROWABLE) {
             throw PanamaUtils.convertInvokeExactException(THROWABLE);
         }
@@ -69,4 +95,4 @@ public class XDP {
     }
 }
 // metadata.generator-version: pni 0.0.20
-// sha256:9469a510b3a7f4b5a19cc7e6c06eae6d22585ccb7d79f57765f57d7c0d412885
+// sha256:213f15818ddc54f9d01ed184f6d5b53ad9546e451defb1b68a25c1d246a39753

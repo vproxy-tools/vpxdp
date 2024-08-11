@@ -27,13 +27,43 @@ abstract class PNIBPFMap {
     @LinkerOption.Critical
     abstract int addXsk(int key, PNIXskInfo xsk);
 
-    @Name("vp_mac_add_into_map")
+    @Name("vp_mac2port_add_into_map")
     @Style(Styles.critical)
     @LinkerOption.Critical
-    abstract int addMac(MemorySegment mac, String ifname);
+    abstract int addMac2Port(MemorySegment mac, String ifname);
 
-    @Name("vp_mac_remove_from_map")
+    @Name("bpf_map__lookup_elem")
     @Style(Styles.critical)
     @LinkerOption.Critical
-    abstract int removeMac(MemorySegment mac);
+    abstract int lookup(MemorySegment key, long keySize, MemorySegment value, long valueSize, long flags);
+
+    @Name("bpf_map__update_elem")
+    @Style(Styles.critical)
+    @LinkerOption.Critical
+    abstract int update(MemorySegment key, long keySize, MemorySegment value, long valueSize, long flags);
+
+    @Name("bpf_map__delete_elem")
+    @Style(Styles.critical)
+    @LinkerOption.Critical
+    abstract int delete(MemorySegment key, long keySize);
+
+    @Name("bpf_map__pin")
+    @Style(Styles.critical)
+    @LinkerOption.Critical
+    abstract int pin(String path);
+
+    @Name("bpf_map__unpin")
+    @Style(Styles.critical)
+    @LinkerOption.Critical
+    abstract int unpin(String path);
+
+    @Name("bpf_map__pin_path")
+    @Style(Styles.critical)
+    @LinkerOption.Critical
+    abstract String getPinPath();
+
+    @Name("bpf_map__get_next_key")
+    @Style(Styles.critical)
+    @LinkerOption.Critical
+    abstract int getNextKey(MemorySegment cur, MemorySegment nx, long keySize);
 }

@@ -94,4 +94,13 @@ project(":test") {
                         File.pathSeparator + "/usr/lib/" + "uname -m".execute().text.trim() + "-linux-gnu")
         main = "io.vproxy.vpxdp.SampleUser"
     }
+
+    task runSample2(type: JavaExec) {
+        classpath = sourceSets.test.runtimeClasspath
+        workingDir = project.rootProject.rootDir.getParentFile().getAbsolutePath()
+        systemProperty("java.library.path",
+                "./" + File.pathSeparator + "./submodules/xdp-tools/lib/libxdp/" +
+                        File.pathSeparator + "/usr/lib/" + "uname -m".execute().text.trim() + "-linux-gnu")
+        main = "io.vproxy.vpxdp.Sample2"
+    }
 }

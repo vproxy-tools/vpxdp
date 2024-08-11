@@ -12,10 +12,19 @@
 
 #include "vproxy_checksum.h"
 
-extern struct bpf_object* load_bpf_object_file(const char* filename);
+extern struct bpf_object* load_bpf_object_file(const char* filename, struct vp_bpf_map_reuse* maps);
 extern int xdp_link_attach(int ifindex, __u32 xdp_flags, int prog_fd);
 
+struct bpf_object* vp_bpfobj_load(char* filepath, struct vp_bpf_map_reuse* maps) {
+    return load_bpf_object_file(filepath, maps);
+}
+
 struct bpf_object* vp_bpfobj_attach_to_if(char* filepath, char* prog, char* ifname, int attach_flags) {
+    return vp_bpfobj_attach_to_if_and_reuse_map(filepath, prog, ifname, attach_flags, NULL);
+}
+
+struct bpf_object* vp_bpfobj_attach_to_if_and_reuse_map(
+                   char* filepath, char* prog, char* ifname, int attach_flags, struct vp_bpf_map_reuse* maps) {
     int ifindex = if_nametoindex((const char*)ifname);
     if (ifindex <= 0) {
         fprintf(stderr, "ERR: if_nametoindex(%s) failed: %d %s\n",
@@ -25,9 +34,9 @@ struct bpf_object* vp_bpfobj_attach_to_if(char* filepath, char* prog, char* ifna
 
     struct bpf_object* bpf_obj = NULL;
 
-    bpf_obj = load_bpf_object_file(filepath);
+    bpf_obj = load_bpf_object_file(filepath, maps);
     if (!bpf_obj) {
-        fprintf(stderr, "ERR: load_bpf_object_file(%s) failed: %d %s\n",
+        fprintf(stderr, "ERR: load_bpf_object_file(%s, ...) failed: %d %s\n",
                 filepath, errno, strerror(errno));
         goto err;
     }
@@ -255,7 +264,7 @@ int vp_xsk_add_into_map(struct bpf_map* map, int key, struct vp_xsk_info* xsk) {
     return 0;
 }
 
-int vp_mac_add_into_map(struct bpf_map* map, char* mac, char* ifname) {
+int vp_mac2port_add_into_map(struct bpf_map* map, char* mac, char* ifname) {
     int ifindex = if_nametoindex((const char*)ifname);
     if (ifindex <= 0) {
         fprintf(stderr, "ERR: if_nametoindex(%s) failed: %d %s\n",
@@ -265,15 +274,6 @@ int vp_mac_add_into_map(struct bpf_map* map, char* mac, char* ifname) {
     int ret = bpf_map__update_elem(map, mac, 6, &ifindex, sizeof(ifindex), BPF_ANY);
     if (ret) {
         fprintf(stderr, "ERR: bpf_map_update_elem failed\n");
-        return -1;
-    }
-    return 0;
-}
-
-int vp_mac_remove_from_map(struct bpf_map* map, char* mac) {
-    int ret = bpf_map__delete_elem(map, &mac, 6, 0);
-    if (ret) {
-        fprintf(stderr, "ERR: bpf_map_delete_elem failed\n");
         return -1;
     }
     return 0;
