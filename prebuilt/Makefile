@@ -9,12 +9,12 @@ linux-gnu-include := $(shell echo /usr/include/`uname -m`-linux-gnu)
 INC_CMD = -I $(UAPI_INC) -I $(LIBBPF_INC) -I $(LIBXDP_INC) -I $(linux-gnu-include)
 
 .PHONY: all
-all: default
+all: default dst_port
 
 .PHONY: clean
 clean:
-	rm -f default.ll
-	rm -f default.o
+	rm -f *.ll
+	rm -f *.o
 
 .PHONY: xdptools
 xdptools:
@@ -25,3 +25,9 @@ default:
 	rm -f default.o
 	clang -g -O2 $(INC_CMD) -target bpf -S -c -emit-llvm -o default.ll default.c
 	llc -march=bpf -filetype=obj -o default.o default.ll
+
+.PHONY: dst_port
+dst_port:
+	rm -f dst_port.o
+	clang -g -O2 $(INC_CMD) -target bpf -S -c -emit-llvm -o dst_port.ll dst_port.c
+	llc -march=bpf -filetype=obj -o dst_port.o dst_port.ll

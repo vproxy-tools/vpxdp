@@ -8,12 +8,21 @@ struct {
     __type(value,       int);
 } xsks_map SEC(".maps");
 
+// this map is usually shared between multiple netifs
 struct {
     __uint(type,        BPF_MAP_TYPE_LRU_HASH);
     __uint(max_entries, 4096);
     __type(key,         char[6]);
-    __type(value,       int); // -1 means pass the packet to kernel
+    __type(value,       int);
 } mac2port_map SEC(".maps");
+
+// this map is usually owned by one netif
+struct {
+    __uint(type,        BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, 4096); // large map, just in case the netif is connected to a bridge
+    __type(key,         char[6]);
+    __type(value,       char); // value is not important
+} pass_mac_map SEC(".maps");
 
 struct {
     __uint(type,        BPF_MAP_TYPE_LRU_HASH);
@@ -57,8 +66,7 @@ inline int redirect_pkt_by_mac(struct xdp_md *ctx) {
     if (ctx->ingress_ifindex == output_iface) {
         return XDP_DROP;
     }
-    // -1 means pass the packet to kernel
-    if (output_iface == -1) {
+    if (bpf_map_lookup_elem(&pass_mac_map, data)) {
         return XDP_PASS;
     }
 

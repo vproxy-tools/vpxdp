@@ -393,7 +393,7 @@ int vp_xdp_write_pkt(struct vp_xsk_info* xsk, struct vp_chunk_info* chunk) {
         if (!err && (chunk->csum_flags & VP_CSUM_XDP_OFFLOAD)
                  && (chunk->umem->tx_metadata_len > 0)
                  && (chunk->pktaddr - chunk->addr >= chunk->umem->tx_metadata_len)) {
-            xsk_ring_prod__tx_desc(&xsk->tx, tx_idx)->options |= XDP_UMEM_TX_SW_CSUM;
+            xsk_ring_prod__tx_desc(&xsk->tx, tx_idx)->options |= XDP_TX_METADATA;
             struct xsk_tx_metadata* meta = (void*)(pkt_addr - chunk->umem->tx_metadata_len);
             meta->flags = XDP_TXMD_FLAGS_CHECKSUM;
             meta->request.csum_start = (out.up_pos - pkt_addr);
@@ -437,7 +437,7 @@ int vp_xdp_write_pkts(struct vp_xsk_info* xsk, int size, struct vp_chunk_info** 
             if (!err && (chunk->csum_flags & VP_CSUM_XDP_OFFLOAD)
                      && (chunk->umem->tx_metadata_len > 0)
                      && (chunk->pktaddr - chunk->addr >= chunk->umem->tx_metadata_len)) {
-                xsk_ring_prod__tx_desc(&xsk->tx, tx_idx + i)->options |= XDP_UMEM_TX_SW_CSUM;
+                xsk_ring_prod__tx_desc(&xsk->tx, tx_idx + i)->options |= XDP_TX_METADATA;
                 struct xsk_tx_metadata* meta = (void*)(pkt_addr - chunk->umem->tx_metadata_len);
                 meta->flags = XDP_TXMD_FLAGS_CHECKSUM;
                 meta->request.csum_start = (out.up_pos - pkt_addr);
