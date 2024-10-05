@@ -32,6 +32,11 @@ abstract class PNIBPFMap {
     @LinkerOption.Critical
     abstract int addMac2Port(MemorySegment mac, String ifname);
 
+    @Name("vp_port2dev_add_into_map")
+    @Style(Styles.critical)
+    @LinkerOption.Critical
+    abstract int addPort2Dev(String ifname);
+
     @Name("bpf_map__lookup_elem")
     @Style(Styles.critical)
     @LinkerOption.Critical

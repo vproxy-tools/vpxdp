@@ -52,6 +52,18 @@ public class BPFMap extends AbstractNativeObject implements NativeObject {
         return RESULT;
     }
 
+    private static final MethodHandle addPort2DevMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "vp_port2dev_add_into_map", MemorySegment.class /* self */, String.class /* ifname */);
+
+    public int addPort2Dev(PNIString ifname) {
+        int RESULT;
+        try {
+            RESULT = (int) addPort2DevMH.invokeExact(MEMORY, (MemorySegment) (ifname == null ? MemorySegment.NULL : ifname.MEMORY));
+        } catch (Throwable THROWABLE) {
+            throw PanamaUtils.convertInvokeExactException(THROWABLE);
+        }
+        return RESULT;
+    }
+
     private static final MethodHandle lookupMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "bpf_map__lookup_elem", MemorySegment.class /* self */, MemorySegment.class /* key */, long.class /* keySize */, MemorySegment.class /* value */, long.class /* valueSize */, long.class /* flags */);
 
     public int lookup(MemorySegment key, long keySize, MemorySegment value, long valueSize, long flags) {
@@ -217,4 +229,4 @@ public class BPFMap extends AbstractNativeObject implements NativeObject {
     }
 }
 // metadata.generator-version: pni 0.0.20
-// sha256:96d2c32bd8be11aa418749639efdba03f9155a84ccf6a7c458677196001eeefe
+// sha256:8ad9d68f4118daebecd9faaee752659c1d4cd6bf66c9eafe67cd78c417260fe4

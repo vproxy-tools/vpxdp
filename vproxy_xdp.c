@@ -279,6 +279,21 @@ int vp_mac2port_add_into_map(struct bpf_map* map, char* mac, char* ifname) {
     return 0;
 }
 
+int vp_port2dev_add_into_map(struct bpf_map* map, char* ifname) {
+    int ifindex = if_nametoindex((const char*)ifname);
+    if (ifindex <= 0) {
+        fprintf(stderr, "ERR: if_nametoindex(%s) failed: %d %s\n",
+                ifname, errno, strerror(errno));
+        return -1;
+    }
+    int ret = bpf_map__update_elem(map, &ifindex, sizeof(ifindex), &ifindex, sizeof(ifindex), BPF_ANY);
+    if (ret) {
+        fprintf(stderr, "ERR: bpf_map__update_elem failed\n");
+        return -1;
+    }
+    return 0;
+}
+
 void vp_xsk_close(struct vp_xsk_info* xsk) {
     // drop rx ring
     {

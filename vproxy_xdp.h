@@ -97,6 +97,7 @@ struct vp_xsk_info*  vp_xsk_create (char* ifname, int queue_id, struct vp_umem_i
 
 int vp_xsk_add_into_map(struct bpf_map* map, int key, struct vp_xsk_info* xsk);
 int vp_mac2port_add_into_map(struct bpf_map* map, char* mac, char* ifname);
+int vp_port2dev_add_into_map(struct bpf_map* map, char* ifname);
 
 void vp_xsk_close (struct vp_xsk_info* xsk);
 void vp_umem_close(struct vp_umem_info* umem, bool clean_buffer);
