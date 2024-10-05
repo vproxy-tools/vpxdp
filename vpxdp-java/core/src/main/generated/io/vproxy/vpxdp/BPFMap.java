@@ -76,12 +76,12 @@ public class BPFMap extends AbstractNativeObject implements NativeObject {
         return RESULT;
     }
 
-    private static final MethodHandle deleteMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "bpf_map__delete_elem", MemorySegment.class /* self */, MemorySegment.class /* key */, long.class /* keySize */);
+    private static final MethodHandle deleteMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), int.class, "bpf_map__delete_elem", MemorySegment.class /* self */, MemorySegment.class /* key */, long.class /* keySize */, long.class /* flags */);
 
-    public int delete(MemorySegment key, long keySize) {
+    public int delete(MemorySegment key, long keySize, long flags) {
         int RESULT;
         try {
-            RESULT = (int) deleteMH.invokeExact(MEMORY, (MemorySegment) (key == null ? MemorySegment.NULL : key), keySize);
+            RESULT = (int) deleteMH.invokeExact(MEMORY, (MemorySegment) (key == null ? MemorySegment.NULL : key), keySize, flags);
         } catch (Throwable THROWABLE) {
             throw PanamaUtils.convertInvokeExactException(THROWABLE);
         }
@@ -217,4 +217,4 @@ public class BPFMap extends AbstractNativeObject implements NativeObject {
     }
 }
 // metadata.generator-version: pni 0.0.20
-// sha256:663d2ca06285a42fc7912f20433223c0a3e8fe0dd77b4f002522884ee24401df
+// sha256:96d2c32bd8be11aa418749639efdba03f9155a84ccf6a7c458677196001eeefe

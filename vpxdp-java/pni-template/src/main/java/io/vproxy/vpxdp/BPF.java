@@ -45,7 +45,7 @@ abstract class PNIBPFMap {
     @Name("bpf_map__delete_elem")
     @Style(Styles.critical)
     @LinkerOption.Critical
-    abstract int delete(MemorySegment key, long keySize);
+    abstract int delete(MemorySegment key, long keySize, long flags);
 
     @Name("bpf_map__pin")
     @Style(Styles.critical)
