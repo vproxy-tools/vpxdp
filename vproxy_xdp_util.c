@@ -5,6 +5,9 @@
 #include <net/if.h>
 #include <linux/if_link.h>
 #include <unistd.h>
+#include <ctype.h>
+#include <stdlib.h>
+#include <sys/utsname.h>
 
 struct bpf_object* load_bpf_object_file(const char* filename, struct vp_bpf_map_reuse* maps) {
     struct bpf_object_open_opts open_opts = { 0 };
@@ -118,4 +121,40 @@ int xdp_link_attach(int ifindex, __u32 xdp_flags, int prog_fd) {
         return 1;
     }
     return 0;
+}
+
+int vp_get_kernel_version(int* ver, int ver_len) {
+    struct utsname name;
+    int err = uname(&name);
+    if (err) {
+        return -1;
+    }
+    char* p = name.release;
+    int i = 0;
+    while (*p && i < ver_len) {
+        if (isdigit(*p)) {
+            ver[i] = strtol(p, &p, 10);
+            ++i;
+        } else {
+            ++p;
+        }
+    }
+    return i;
+}
+
+// 6.11+ or 6.10.3+
+int vp_need_xdp_umem_tx_metadata_len_flag(void) {
+    int ver[3];
+    int len = vp_get_kernel_version(ver, 3);
+    if (len < 3) {
+        fprintf(stderr, "failed to get kernel version: %d %s\n",
+                errno, strerror(errno));
+        return 0;
+    }
+    if (ver[0] < 6)  return 0;
+    if (ver[0] > 6)  return 1;
+    if (ver[1] < 10) return 0;
+    if (ver[1] > 10) return 1;
+    if (ver[2] < 3)  return 0;
+    return 1;
 }

@@ -14,6 +14,7 @@
 
 extern struct bpf_object* load_bpf_object_file(const char* filename, struct vp_bpf_map_reuse* maps);
 extern int xdp_link_attach(int ifindex, __u32 xdp_flags, int prog_fd);
+extern int vp_need_xdp_umem_tx_metadata_len_flag(void);
 
 struct bpf_object* vp_bpfobj_load(char* filepath, struct vp_bpf_map_reuse* maps) {
     return load_bpf_object_file(filepath, maps);
@@ -132,6 +133,9 @@ struct vp_umem_info* vp_umem_create(int chunks_count, int fill_ring_size, int co
         .tx_metadata_len = meta_len,
         .flags = 0
     };
+    if (meta_len && vp_need_xdp_umem_tx_metadata_len_flag()) {
+        umem_config.flags |= XDP_UMEM_TX_METADATA_LEN;
+    }
 
     int ret = xsk_umem__create(&umem->umem, buffer, mem_size, &umem->fill_ring, &umem->comp_ring, &umem_config);
     if (ret) {
