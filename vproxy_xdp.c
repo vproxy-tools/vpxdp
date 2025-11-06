@@ -225,15 +225,20 @@ struct vp_xsk_info* vp_xsk_create(char* ifname, int queue_id, struct vp_umem_inf
     int ret;
     if (umem->is_shared) {
         ret = xsk_socket__create_shared(&xsk_info->xsk, ifname, queue_id, umem->umem, &xsk_info->rx, &xsk_info->tx, &umem->fill_ring, &umem->comp_ring, &xsk_cfg);
-        if (ret == 0) {
+        if (ret) {
+            fprintf(stderr, "ERR: xsk_socket__create_shared failed: %d %s\n",
+                    -ret, strerror(-ret));
+        } else {
             vp_xdp_fill_ring_fillup(umem);
         }
     } else {
         ret = xsk_socket__create(&xsk_info->xsk, ifname, queue_id, umem->umem, &xsk_info->rx, &xsk_info->tx, &xsk_cfg);
+        if (ret) {
+            fprintf(stderr, "ERR: xsk_socket__create failed: %d %s\n",
+                    -ret, strerror(-ret));
+        }
     }
     if (ret) {
-        fprintf(stderr, "ERR: xsk_socket__create failed: %d %s\n",
-                -ret, strerror(-ret));
         goto err;
     }
 
