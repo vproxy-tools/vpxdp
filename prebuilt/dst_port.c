@@ -63,7 +63,8 @@ SEC("xdp") int xdp_sock(struct xdp_md *ctx)
             return XDP_PASS;
         }
         int dst = ((data[TCPUDP4_DST_OFF] & 0xff) << 8) | (data[TCPUDP4_DST_OFF + 1] & 0xff);
-        if (bpf_map_lookup_elem(&handled_ports, &dst) == NULL) {
+        char* vptr = bpf_map_lookup_elem(&handled_ports, &dst);
+        if (vptr == NULL || *vptr == 0) {
             return XDP_PASS;
         }
     } else if (ether_type == ETHER_TYPE_IPv6) {
@@ -80,7 +81,8 @@ SEC("xdp") int xdp_sock(struct xdp_md *ctx)
             return XDP_PASS;
         }
         int dst = ((data[TCPUDP6_DST_OFF] & 0xff) << 8) | (data[TCPUDP6_DST_OFF + 1] & 0xff);
-        if (bpf_map_lookup_elem(&handled_ports, &dst) == NULL) {
+        char* vptr = bpf_map_lookup_elem(&handled_ports, &dst);
+        if (vptr == NULL || *vptr == 0) {
             return XDP_PASS;
         }
     } else {
