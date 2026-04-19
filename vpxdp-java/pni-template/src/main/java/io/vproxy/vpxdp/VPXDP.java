@@ -160,6 +160,12 @@ interface PNIXDP {
     @NoAlloc
     PNIUMemInfo createUMem(int chunksCount, int fillRingSize, int compRingSize, int frameSize, int headroom, int metaLen);
 
+    @Name("vp_umem_create_flags")
+    @Style(Styles.critical)
+    @LinkerOption.Critical
+    @NoAlloc
+    PNIUMemInfo createUMemFlags(int chunksCount, int fillRingSize, int compRingSize, int frameSize, int headroom, int metaLen, int flags);
+
     @Name("vp_xsk_create")
     @Style(Styles.critical)
     @LinkerOption.Critical

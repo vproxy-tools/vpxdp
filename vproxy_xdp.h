@@ -90,6 +90,8 @@ struct bpf_object* vp_bpfobj_attach_to_if_and_reuse_map(
 
 struct vp_umem_info* vp_umem_create(int chunks_count, int fill_ring_size, int comp_ring_size,
                                     uint64_t frame_size, int headroom, int meta_len);
+struct vp_umem_info* vp_umem_create_flags(int chunks_count, int fill_ring_size, int comp_ring_size,
+                                          uint64_t frame_size, int headroom, int meta_len, int flags);
 struct vp_umem_info* vp_umem_share (struct vp_umem_info* umem);
 struct vp_xsk_info*  vp_xsk_create (char* ifname, int queue_id, struct vp_umem_info* umem,
                                     int rx_ring_size, int tx_ring_size, int xdp_flags, int bind_flags,

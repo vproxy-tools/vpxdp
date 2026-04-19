@@ -101,6 +101,12 @@ struct bpf_map* vp_bpfobj_find_map_by_name(struct bpf_object* bpfobj, char* name
 
 struct vp_umem_info* vp_umem_create(int chunks_count, int fill_ring_size, int comp_ring_size,
                                     uint64_t frame_size, int headroom, int meta_len) {
+    return vp_umem_create_flags(chunks_count, fill_ring_size, comp_ring_size,
+                                frame_size, headroom, meta_len, 0);
+}
+
+struct vp_umem_info* vp_umem_create_flags(int chunks_count, int fill_ring_size, int comp_ring_size,
+                                          uint64_t frame_size, int headroom, int meta_len, int flags) {
     if (chunks_count < fill_ring_size) {
         fprintf(stderr, "WARN: chunks_count %d < fill_ring_size %d, set chunks_count to fill_ring_size",
                 chunks_count, fill_ring_size);
@@ -131,7 +137,7 @@ struct vp_umem_info* vp_umem_create(int chunks_count, int fill_ring_size, int co
         .frame_size = frame_size,
         .frame_headroom = headroom,
         .tx_metadata_len = meta_len,
-        .flags = 0
+        .flags = flags,
     };
     if (meta_len && vp_need_xdp_umem_tx_metadata_len_flag()) {
         umem_config.flags |= XDP_UMEM_TX_METADATA_LEN;

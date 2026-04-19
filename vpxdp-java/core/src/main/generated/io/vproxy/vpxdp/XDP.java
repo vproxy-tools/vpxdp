@@ -81,6 +81,19 @@ public class XDP {
         return RESULT == null ? null : new io.vproxy.vpxdp.UMemInfo(RESULT);
     }
 
+    private static final MethodHandle createUMemFlagsMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), io.vproxy.vpxdp.UMemInfo.LAYOUT.getClass(), "vp_umem_create_flags", int.class /* chunksCount */, int.class /* fillRingSize */, int.class /* compRingSize */, int.class /* frameSize */, int.class /* headroom */, int.class /* metaLen */, int.class /* flags */);
+
+    public io.vproxy.vpxdp.UMemInfo createUMemFlags(int chunksCount, int fillRingSize, int compRingSize, int frameSize, int headroom, int metaLen, int flags) {
+        MemorySegment RESULT;
+        try {
+            RESULT = (MemorySegment) createUMemFlagsMH.invokeExact(chunksCount, fillRingSize, compRingSize, frameSize, headroom, metaLen, flags);
+        } catch (Throwable THROWABLE) {
+            throw PanamaUtils.convertInvokeExactException(THROWABLE);
+        }
+        if (RESULT.address() == 0) return null;
+        return RESULT == null ? null : new io.vproxy.vpxdp.UMemInfo(RESULT);
+    }
+
     private static final MethodHandle createXskMH = PanamaUtils.lookupPNICriticalFunction(new PNILinkOptions().setCritical(true), io.vproxy.vpxdp.XskInfo.LAYOUT.getClass(), "vp_xsk_create", String.class /* ifname */, int.class /* queueId */, io.vproxy.vpxdp.UMemInfo.LAYOUT.getClass() /* umem */, int.class /* rxRingSize */, int.class /* txRingSize */, int.class /* xdpFlags */, int.class /* bindFlags */, int.class /* busyPollBudget */, int.class /* vpFlags */);
 
     public io.vproxy.vpxdp.XskInfo createXsk(PNIString ifname, int queueId, io.vproxy.vpxdp.UMemInfo umem, int rxRingSize, int txRingSize, int xdpFlags, int bindFlags, int busyPollBudget, int vpFlags) {
@@ -95,4 +108,4 @@ public class XDP {
     }
 }
 // metadata.generator-version: pni 0.0.20
-// sha256:213f15818ddc54f9d01ed184f6d5b53ad9546e451defb1b68a25c1d246a39753
+// sha256:7a5443767b913bf1552834e3ac73ca887886b3284542fe8bbaa3b0322e703c6a
