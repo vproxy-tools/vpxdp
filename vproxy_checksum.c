@@ -1,6 +1,7 @@
 #include "vproxy_checksum.h"
 
 #include <stddef.h>
+#include <stdio.h>
 
 #define ETHER_TYPE_OFF           (12)
 #define ETHER_TYPE_WITH_VLAN_OFF (16)
@@ -84,7 +85,7 @@ char* vp_pkt_ipv6_skip_to_last_hdr(char* raw, int len, char* proto) {
     while (vp_pkt_ipv6_require_next_header(xh)) {
         if (ex_off + 8 > len) {
             #ifdef VP_CSUM_DEBUG
-            printf("pkt too short for ip6 opt\n");
+            fprintf(stderr, "pkt too short for ip6 opt\n");
             #endif
             return NULL;
         }
@@ -95,7 +96,7 @@ char* vp_pkt_ipv6_skip_to_last_hdr(char* raw, int len, char* proto) {
     }
     if (ex_off > len) {
         #ifdef VP_CSUM_DEBUG
-        printf("pkt too short for ip6 after parsing ip6 opt\n");
+        fprintf(stderr, "pkt too short for ip6 after parsing ip6 opt\n");
         #endif
         return NULL;
     }
@@ -113,7 +114,7 @@ int vp_pkt_icmp4_csum(char* raw, int len, int flags, struct vp_csum_out* out) {
 
     if (len < ICMP_CSUM_OFF + 2) {
         #ifdef VP_CSUM_DEBUG
-        printf("pkt too short for icmp4\n");
+        fprintf(stderr, "pkt too short for icmp4\n");
         #endif
         return 1;
     }
@@ -140,7 +141,7 @@ int vp_pkt_tcp4_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out
 
     if (len < TCP_CSUM_OFF + 2) {
         #ifdef VP_CSUM_DEBUG
-        printf("pkt too short for tcp4\n");
+        fprintf(stderr, "pkt too short for tcp4\n");
         #endif
         return 1;
     }
@@ -150,7 +151,7 @@ int vp_pkt_tcp4_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out
     if (flags & VP_CSUM_UP) {
         csum = vp_csum_ipv4_pseudo_calc(ip + IP4_SRC_OFF, ip + IP4_DST_OFF, IP_PROTOCOL_TCP, raw, len);
     } else {
-        csum = vp_csum_ipv4_pseudo_calc(ip + IP4_SRC_OFF, ip + IP4_DST_OFF, IP_PROTOCOL_TCP, NULL, 0);
+        csum = vp_csum_ipv4_pseudo_calc(ip + IP4_SRC_OFF, ip + IP4_DST_OFF, IP_PROTOCOL_TCP, NULL, len);
     }
     raw[TCP_CSUM_OFF] = (csum >> 8) & 0xff;
     raw[TCP_CSUM_OFF + 1] = csum & 0xff;
@@ -167,7 +168,7 @@ int vp_pkt_udp4_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out
 
     if (len < UDP_CSUM_OFF + 2) {
         #ifdef VP_CSUM_DEBUG
-        printf("pkt too short for udp4\n");
+        fprintf(stderr, "pkt too short for udp4\n");
         #endif
         return 1;
     }
@@ -180,7 +181,7 @@ int vp_pkt_udp4_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out
             csum = 0xffff;
         }
     } else {
-        csum = vp_csum_ipv4_pseudo_calc(ip + IP4_SRC_OFF, ip + IP4_DST_OFF, IP_PROTOCOL_UDP, NULL, 0);
+        csum = vp_csum_ipv4_pseudo_calc(ip + IP4_SRC_OFF, ip + IP4_DST_OFF, IP_PROTOCOL_UDP, NULL, len);
     }
     raw[UDP_CSUM_OFF] = (csum >> 8) & 0xff;
     raw[UDP_CSUM_OFF + 1] = csum & 0xff;
@@ -190,27 +191,27 @@ int vp_pkt_udp4_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out
 int vp_pkt_ipv4_csum(char* raw, int len, int flags, struct vp_csum_out* out) {
     if (len < IP4_HDR_MIN_LEN) {
         #ifdef VP_CSUM_DEBUG
-        printf("pkt too short for ipv4\n");
+        fprintf(stderr, "pkt too short for ipv4\n");
         #endif
         return 1;
     }
     int hdr_len = vp_pkt_ipv4_hdr_len(raw);
     if (hdr_len < IP4_HDR_MIN_LEN) {
         #ifdef VP_CSUM_DEBUG
-        printf("ipv4 hdr len < IP4_HDR_MIN_LEN\n");
+        fprintf(stderr, "ipv4 hdr len < IP4_HDR_MIN_LEN\n");
         #endif
         return 1;
     }
     int total_len = vp_pkt_ipv4_total_len(raw);
     if (hdr_len > total_len) {
         #ifdef VP_CSUM_DEBUG
-        printf("ipv4 hdr len > total len\n");
+        fprintf(stderr, "ipv4 hdr len > total len\n");
         #endif
         return 1;
     }
     if (total_len > len) {
         #ifdef VP_CSUM_DEBUG
-        printf("ipv4 total len > pkt len\n");
+        fprintf(stderr, "ipv4 total len > pkt len\n");
         #endif
         return 1;
     }
@@ -233,7 +234,7 @@ int vp_pkt_ipv4_csum(char* raw, int len, int flags, struct vp_csum_out* out) {
         return vp_pkt_icmp4_csum(upper, upper_len, flags, out);
     } else if (proto == IP_PROTOCOL_ICMPv6) {
         #ifdef VP_CSUM_DEBUG
-        printf("ipv4 pkt but got icmp6\n");
+        fprintf(stderr, "ipv4 pkt but got icmp6\n");
         #endif
         return 1;
     } else if (proto == IP_PROTOCOL_TCP) {
@@ -242,7 +243,7 @@ int vp_pkt_ipv4_csum(char* raw, int len, int flags, struct vp_csum_out* out) {
         return vp_pkt_udp4_csum(raw, upper, upper_len, flags, out);
     } else {
         #ifdef VP_CSUM_DEBUG
-        printf("unhandled ip proto\n");
+        fprintf(stderr, "unhandled ip proto\n");
         #endif
         return 1;
     }
@@ -258,7 +259,7 @@ int vp_pkt_icmp6_csum(char* ip, char* raw, int len, int flags, struct vp_csum_ou
 
     if (len < ICMP_CSUM_OFF + 2) {
         #ifdef VP_CSUM_DEBUG
-        printf("pkt too short for icmp6\n");
+        fprintf(stderr, "pkt too short for icmp6\n");
         #endif
         return 1;
     }
@@ -268,7 +269,7 @@ int vp_pkt_icmp6_csum(char* ip, char* raw, int len, int flags, struct vp_csum_ou
     if (flags & VP_CSUM_UP) {
         csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_ICMPv6, raw, len);
     } else {
-        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_ICMPv6, NULL, 0);
+        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_ICMPv6, NULL, len);
     }
     raw[ICMP_CSUM_OFF] = (csum >> 8) & 0xff;
     raw[ICMP_CSUM_OFF + 1] = csum & 0xff;
@@ -285,7 +286,7 @@ int vp_pkt_tcp6_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out
 
     if (len < TCP_CSUM_OFF + 2) {
         #ifdef VP_CSUM_DEBUG
-        printf("pkt too short for tcp6\n");
+        fprintf(stderr, "pkt too short for tcp6\n");
         #endif
         return 1;
     }
@@ -295,7 +296,7 @@ int vp_pkt_tcp6_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out
     if (flags & VP_CSUM_UP) {
         csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_TCP, raw, len);
     } else {
-        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_TCP, NULL, 0);
+        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_TCP, NULL, len);
     }
     raw[TCP_CSUM_OFF] = (csum >> 8) & 0xff;
     raw[TCP_CSUM_OFF + 1] = csum & 0xff;
@@ -312,7 +313,7 @@ int vp_pkt_udp6_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out
 
     if (len < UDP_CSUM_OFF + 2) {
         #ifdef VP_CSUM_DEBUG
-        printf("pkt too short for udp6\n");
+        fprintf(stderr, "pkt too short for udp6\n");
         #endif
         return 1;
     }
@@ -325,7 +326,7 @@ int vp_pkt_udp6_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out
             csum = 0xffff;
         }
     } else {
-        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_UDP, NULL, 0);
+        csum = vp_csum_ipv6_pseudo_calc(ip + IP6_SRC_OFF, ip + IP6_DST_OFF, IP_PROTOCOL_UDP, NULL, len);
     }
     raw[UDP_CSUM_OFF] = (csum >> 8) & 0xff;
     raw[UDP_CSUM_OFF + 1] = csum & 0xff;
@@ -335,14 +336,14 @@ int vp_pkt_udp6_csum(char* ip, char* raw, int len, int flags, struct vp_csum_out
 int vp_pkt_ipv6_csum(char* raw, int len, int flags, struct vp_csum_out* out) {
     if (len < IP6_HDR_MIN_LEN) {
         #ifdef VP_CSUM_DEBUG
-        printf("pkt too short for ipv6\n");
+        fprintf(stderr, "pkt too short for ipv6\n");
         #endif
         return 1;
     }
     int payload_len = vp_pkt_ipv6_payload_len(raw);
     if (IP6_HDR_MIN_LEN + payload_len > len) {
         #ifdef VP_CSUM_DEBUG
-        printf("pkt too short for ipv6 payload\n");
+        fprintf(stderr, "pkt too short for ipv6 payload\n");
         #endif
         return 1;
     }
@@ -370,7 +371,7 @@ int vp_pkt_ipv6_csum(char* raw, int len, int flags, struct vp_csum_out* out) {
         return vp_pkt_udp6_csum(raw, upper, upper_len, flags, out);
     } else {
         #ifdef VP_CSUM_DEBUG
-        printf("unhandled ip6 proto\n");
+        fprintf(stderr, "unhandled ip6 proto\n");
         #endif
         return 1;
     }
@@ -383,13 +384,13 @@ int vp_pkt_ether_csum(char* raw, int len, int flags) {
 int vp_pkt_ether_csum_ex(char* raw, int len, int flags, struct vp_csum_out* out) {
     if (flags == VP_CSUM_NO) {
         #ifdef VP_CSUM_DEBUG
-        printf("no need to calculate\n");
+        fprintf(stderr, "no need to calculate\n");
         #endif
         return 1;
     }
     if (len < ETHER_TYPE_OFF + 2) {
         #ifdef VP_CSUM_DEBUG
-        printf("ether pkt too short to get ether_type\n");
+        fprintf(stderr, "ether pkt too short to get ether_type\n");
         #endif
         return 1;
     }
@@ -399,7 +400,7 @@ int vp_pkt_ether_csum_ex(char* raw, int len, int flags, struct vp_csum_out* out)
     if (ether_type == ETHER_TYPE_8021Q) {
         if (len < ETHER_TYPE_WITH_VLAN_OFF + 2) {
             #ifdef VP_CSUM_DEBUG
-            printf("ether pkt too short to get 802.1q type\n");
+            fprintf(stderr, "ether pkt too short to get 802.1q type\n");
             #endif
             return 1;
         }
@@ -409,7 +410,7 @@ int vp_pkt_ether_csum_ex(char* raw, int len, int flags, struct vp_csum_out* out)
     }
     if (ether_type != ETHER_TYPE_IPv4 && ether_type != ETHER_TYPE_IPv6) {
         #ifdef VP_CSUM_DEBUG
-        printf("not ipv4 nor ipv6, skip the packet\n");
+        fprintf(stderr, "not ipv4 nor ipv6, skip the packet\n");
         #endif
         return 1;
     }

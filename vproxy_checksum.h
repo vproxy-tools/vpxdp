@@ -1,6 +1,8 @@
 #ifndef VPROXY_CHECKSUM_H
 #define VPROXY_CHECKSUM_H
 
+#include <stddef.h>
+
 #define VP_CSUM_NO        (0)
 #define VP_CSUM_IP        (1 << 0)
 #define VP_CSUM_UP        (1 << 1)
@@ -46,6 +48,9 @@ inline int vp_csum_ipv4_pseudo_calc(char* src, char* dst, char proto, char* data
     foo[0] = (datalen >> 8) & 0xff;
     foo[1] = datalen & 0xff;
     sum = vp_csum_calc0(sum, foo, 2);
+    if (data == NULL) {
+        return sum;
+    }
     sum = vp_csum_calc0(sum, data, datalen);
     return 0xffff - sum;
 }
@@ -64,6 +69,9 @@ inline int vp_csum_ipv6_pseudo_calc(char* src, char* dst, char proto, char* data
     foo[2] = 0;
     foo[3] = proto;
     sum = vp_csum_calc0(sum, foo, 4);
+    if (data == NULL) {
+        return sum;
+    }
     sum = vp_csum_calc0(sum, data, datalen);
     return 0xffff - sum;
 }
