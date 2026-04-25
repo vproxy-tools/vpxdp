@@ -63,7 +63,6 @@ struct vp_xsk_info {
 
     int outstanding_tx;
 
-#define VP_XSK_FLAG_RX_GEN_CSUM (1)
     int flags;
 };
 

@@ -392,10 +392,6 @@ int vp_xdp_fetch_pkt(struct vp_xsk_info* xsk, uint32_t* idx_rx_ptr, struct vp_ch
     chunk->pkt = pkt;
     chunk->pktlen = len;
 
-    if (xsk->flags & VP_XSK_FLAG_RX_GEN_CSUM) {
-        vp_pkt_ether_csum(pkt, len, VP_CSUM_ALL);
-    }
-
     chunk->csum_flags = 0;
 
     *chunkptr = chunk;
