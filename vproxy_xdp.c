@@ -423,7 +423,7 @@ int vp_xdp_write_pkt(struct vp_xsk_info* xsk, struct vp_chunk_info* chunk) {
             struct xsk_tx_metadata* meta = (void*)(pkt_addr - chunk->umem->tx_metadata_len);
             meta->flags = XDP_TXMD_FLAGS_CHECKSUM;
             meta->request.csum_start = (out.up_pos - pkt_addr);
-            meta->request.csum_offset = (out.up_csum_pos - pkt_addr);
+            meta->request.csum_offset = (out.up_csum_pos - out.up_pos);
         }
     }
 
